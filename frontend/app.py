@@ -1,0 +1,478 @@
+import os
+import streamlit as st
+import requests
+import json
+from typing import Dict, Any, List
+
+# ==========================================
+# Page Configuration & Styling
+# ==========================================
+
+st.set_page_config(
+    page_title="Pathfinder AI — Autonomous Student Growth Agent",
+    page_icon="🧭",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom Styling for Rich Aesthetics & Dark/Light Mode Compatibility
+st.markdown("""
+<style>
+    div[data-testid="metric-container"] {
+        background-color: rgba(28, 131, 225, 0.08);
+        border: 1px solid rgba(28, 131, 225, 0.2);
+        padding: 15px;
+        border-radius: 10px;
+        transition: all 0.2s ease;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    h1, h2, h3 {
+        font-family: 'Outfit', 'Inter', sans-serif;
+        font-weight: 600;
+    }
+    .score-badge-high {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+    .score-badge-med {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+    .intent-tag {
+        background: rgba(139, 92, 246, 0.2);
+        color: #8b5cf6;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
+def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files: dict = None) -> Any:
+    url = f"{API_BASE}{endpoint}"
+    try:
+        if method == "GET":
+            res = requests.get(url, timeout=10)
+        elif method == "POST":
+            if files:
+                res = requests.post(url, files=files, timeout=30)
+            else:
+                res = requests.post(url, json=json_data, timeout=15)
+        if res.status_code == 200:
+            return res.json()
+        else:
+            st.error(f"API Error ({res.status_code}): {res.text}")
+            return None
+    except requests.exceptions.ConnectionError:
+        st.error("❌ Cannot connect to Pathfinder Server. Please ensure your cloud service is active.")
+        return None
+    except Exception as e:
+        st.error(f"Error communicating with server: {e}")
+        return None
+
+# ==========================================
+# Sidebar Navigation
+# ==========================================
+
+with st.sidebar:
+    st.image("https://img.icons8.com/clouds/200/compass.png", width=100)
+    st.title("🧭 Pathfinder AI")
+    st.caption("Autonomous Student Growth Agent")
+    st.markdown("---")
+    
+    page = st.radio(
+        "Navigation",
+        [
+            "🏠 Dashboard & Overview",
+            "🤖 Autonomous AI Agent",
+            "👤 Student Profile",
+            "🧭 Opportunity Scout",
+            "📚 Study Knowledge Vault",
+            "🗓️ Learning Planner",
+            "⚙️ Settings & Reference"
+        ]
+    )
+    
+    st.markdown("---")
+    st.markdown("### 🤖 System Status")
+    health = fetch_api("/health")
+    sched_status = fetch_api("/scheduler/status") or {}
+    
+    if health and health.get("status") == "healthy":
+        st.success("● Server: Online")
+    else:
+        st.error("● Server: Offline")
+        
+    if sched_status.get("is_running"):
+        st.info(f"⚡ Scout: Active ({sched_status.get('interval_minutes', 5)}m loop)")
+    else:
+        st.warning("⚡ Scout: Paused")
+        
+    st.caption("Pathfinder AI v1.0 •Project Edition")
+
+# ==========================================
+# 1. Dashboard & Overview Page
+# ==========================================
+if page == "🏠 Dashboard & Overview":
+    st.title("Welcome back to Pathfinder AI! 🧭")
+    st.markdown("Your autonomous AI career and study companion designed to accelerate student growth.")
+    
+    profile = fetch_api("/profile") or {}
+    opps = fetch_api("/opportunities") or []
+    vault_docs = fetch_api("/vault/documents") or {"count": 0}
+    notifs = fetch_api("/notifications") or []
+    
+    if profile.get('name') in ["Hello User", "Alex River", "Student", "", None]:
+        with st.expander("👋 Welcome! Personalize Your Pathfinder Profile (Quick Setup)", expanded=True):
+            st.markdown("We initialized your agent with generic software domains so it works out-of-the-box. Customize below to get tailored career recommendations!")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                new_name = st.text_input("Your Name", value=profile.get("name", "Hello User"), key="ob_name")
+                new_domains = st.text_input("Preferred Career Domains", value=profile.get("preferred_domains", "General Software, Tech Solutions"), key="ob_domains")
+            with col_b:
+                new_skills = st.text_input("Core Skills (comma separated)", value=profile.get("skills", "General Computing, Problem Solving, Software Basics"), key="ob_skills")
+                new_interests = st.text_input("Passions & Interests", value=profile.get("interests", "Technology, Software Engineering, Innovation"), key="ob_interests")
+            if st.button("🚀 Save & Personalize Agent", type="primary", use_container_width=True):
+                updated_data = {
+                    "name": new_name,
+                    "skills": new_skills,
+                    "interests": new_interests,
+                    "preferred_domains": new_domains,
+                    "preferred_location": profile.get("preferred_location", "Remote / Flexible"),
+                    "notification_preference": profile.get("notification_preference", "Discord")
+                }
+                res = fetch_api("/profile", method="POST", json_data=updated_data)
+                if res:
+                    st.success(f"🎉 Welcome aboard, {new_name}! Profile saved to memory.")
+                    st.rerun()
+        st.markdown("---")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric(label="Top Skills Tracked", value=len(str(profile.get("skills", "")).split(",")))
+    with col2:
+        st.metric(label="Opportunities Ranked", value=len(opps))
+    with col3:
+        st.metric(label="Knowledge Vault PDFs", value=vault_docs.get("count", 0))
+    with col4:
+        st.metric(label="System Alerts Logged", value=len(notifs))
+        
+    st.markdown("---")
+    
+    tab_overview, tab_alerts = st.tabs(["🔥 Top Ranked Opportunities", f"🔔 Notification & Webhook Logs ({len(notifs)})"])
+    
+    with tab_overview:
+        left_col, right_col = st.columns([3, 2])
+        with left_col:
+            st.subheader("🔥 Top AI-Ranked Internships & Hackathons")
+            if opps:
+                top_3 = opps[:3]
+                for idx, opp in enumerate(top_3):
+                    score = opp.get("score", 0)
+                    badge_class = "score-badge-high" if score >= 80 else "score-badge-med"
+                    with st.container():
+                        st.markdown(f"""
+                        **{idx+1}. [{opp.get('title')}]({opp.get('url')})** — *{opp.get('company')}*  
+                        <span class="{badge_class}">AI Score: {score}/100</span> &nbsp; • &nbsp; 📅 Deadline: `{opp.get('deadline')}`  
+                        💡 *{opp.get('reason')}*
+                        """, unsafe_allow_html=True)
+                        st.divider()
+            else:
+                st.info("No opportunities ranked yet. Head to the **Opportunity Scout** to trigger the AI agent!")
+                
+        with right_col:
+            st.subheader("🎯 Active Profile Summary")
+            st.write(f"**Name:** `{profile.get('name', 'Hello User')}`")
+            st.write(f"**Preferred Domains:** `{profile.get('preferred_domains', 'General Software')}`")
+            st.write(f"**Core Skills:** `{profile.get('skills', 'Computing Basics')}`")
+            st.write(f"**Location Pref:** `{profile.get('preferred_location', 'Remote')}`")
+            if st.button("✏️ Edit Profile Settings", use_container_width=True):
+                st.session_state["nav"] = "👤 Student Profile"
+                st.rerun()
+                
+    with tab_alerts:
+        st.subheader("🔔 Autonomous Background Alerts & Notification Logs")
+        st.markdown("Every 5 minutes (or when manually triggered), the autonomous scout evaluates new web opportunities. Items with an AI relevance score **> 85** trigger a live alert and are logged in your local memory.")
+        if notifs:
+            for n in notifs:
+                with st.expander(f"🚨 `{n.get('timestamp')}` — {n.get('title')}", expanded=False):
+                    st.write(f"**Message:** {n.get('message')}")
+                    if n.get('url'):
+                        st.link_button("🌐 Open Opportunity Link", url=n.get('url'), use_container_width=False)
+        else:
+            st.info("No system notifications logged yet. Run an Opportunity Scout pass to generate alerts!")
+
+# ==========================================
+# 2. Autonomous AI Agent Chat Page
+# ==========================================
+elif page == "🤖 Autonomous AI Agent":
+    st.title("🤖 Autonomous AI Assistant")
+    st.markdown("""
+    Experience Pathfinder's unified **autonomous orchestration engine**. Type anything below, and your assistant will:
+    1. **Load Profile**: Fetch your saved skills and career goals from local memory.
+    2. **Determine Intent**: Route intelligently between **Scout** (internships/hackathons), **Planner** (study roadmaps), or **Knowledge Vault** (PDF study questions).
+    """)
+    
+    if "agent_messages" not in st.session_state:
+        st.session_state.agent_messages = [
+            {"role": "assistant", "content": "Hello! I am your autonomous Pathfinder AI Assistant. Try saying:\n- *'Find me high impact AI internships'*\n- *'Create a study roadmap for Python web apps'*\n- *'Summarize key concepts from my study notes'*", "intent": "system"}
+        ]
+        
+    for msg in st.session_state.agent_messages:
+        with st.chat_message(msg["role"]):
+            if "intent" in msg and msg["intent"] != "system":
+                st.markdown(f"<span class='intent-tag'>Agent Route: {msg['intent'].upper()}</span>", unsafe_allow_html=True)
+            st.markdown(msg["content"])
+            
+    if user_prompt := st.chat_input("Command your autonomous Agent..."):
+        st.session_state.agent_messages.append({"role": "user", "content": user_prompt})
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
+            
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing request and executing agent workflow..."):
+                res = fetch_api("/agent/chat", method="POST", json_data={"user_input": user_prompt})
+                if res:
+                    intent_routed = res.get("intent", "unknown")
+                    response_text = res.get("response", "No response generated.")
+                    st.markdown(f"<span class='intent-tag'>Agent Route: {intent_routed.upper()}</span>", unsafe_allow_html=True)
+                    st.markdown(response_text)
+                    st.session_state.agent_messages.append({"role": "assistant", "content": response_text, "intent": intent_routed})
+
+# ==========================================
+# 3. Student Profile Page
+# ==========================================
+elif page == "👤 Student Profile":
+    st.title("👤 Student Profile & Interest Preferences")
+    st.markdown("Customize your skills and career domains. These preferences are stored securely in your **local profile memory** and directly guide how the AI ranks hackathons and internships.")
+    
+    current_profile = fetch_api("/profile") or {}
+    
+    with st.form("profile_form"):
+        name = st.text_input("Full Name", value=current_profile.get("name", "Hello User"))
+        skills = st.text_area("Core Skills (Comma separated)", value=current_profile.get("skills", "General Computing, Problem Solving, Software Basics"))
+        interests = st.text_area("Passions & Interests", value=current_profile.get("interests", "Technology, Software Engineering, Innovation"))
+        preferred_domains = st.text_input("Preferred Career Domains", value=current_profile.get("preferred_domains", "General Software, Tech Solutions"))
+        preferred_location = st.selectbox(
+            "Preferred Work Location",
+            ["Remote", "Hybrid", "On-site", "Remote / Hybrid"],
+            index=0
+        )
+        notification_pref = st.selectbox(
+            "Notification Preference",
+            ["Discord", "Email", "In-App Only"],
+            index=0
+        )
+        
+        submit = st.form_submit_button("💾 Save Profile & Update Recommendations")
+        if submit:
+            payload = {
+                "name": name,
+                "skills": skills,
+                "interests": interests,
+                "preferred_domains": preferred_domains,
+                "preferred_location": preferred_location,
+                "notification_preference": notification_pref
+            }
+            res = fetch_api("/profile", method="POST", json_data=payload)
+            if res:
+                st.success("✅ Profile updated and saved to local memory! Opportunity rankings will now reflect your new preferences.")
+
+# ==========================================
+# 4. Opportunity Scout Page
+# ==========================================
+elif page == "🧭 Opportunity Scout":
+    st.title("🧭 Autonomous Opportunity Scout")
+    st.markdown("Pathfinder wakes up, scouts internships and hackathons, removes duplicates, and uses **Gemini LLM reasoning** to rank each opportunity against your interest scores.")
+    
+    col_btn, col_txt = st.columns([1, 4])
+    with col_btn:
+        run_scout = st.button("🚀 Run Agent Now", use_container_width=True, type="primary")
+    with col_txt:
+        st.caption("Click to trigger an immediate autonomous scouting, AI ranking, and Discord webhook alerting pass.")
+        
+    if run_scout:
+        with st.spinner("🤖 Agent scouting and scoring opportunities with Gemini LLM..."):
+            res = fetch_api("/run-agent", method="POST")
+            if res:
+                st.success(f"⚡ {res.get('message')}")
+                
+    st.markdown("---")
+    
+    opps = fetch_api("/opportunities") or []
+    if opps:
+        st.subheader(f"📊 Ranked Opportunities ({len(opps)} found)")
+        for opp in opps:
+            score = opp.get("score", 0)
+            badge_color = "#10b981" if score >= 85 else ("#f59e0b" if score >= 65 else "#64748b")
+            
+            with st.expander(f"⭐ [{score}/100]  {opp.get('title')} — {opp.get('company')}", expanded=(score >= 80)):
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    st.markdown(f"**Company / Sponsor:** `{opp.get('company')}`")
+                    st.markdown(f"**Source:** `{opp.get('source')}` &nbsp; | &nbsp; **Deadline:** `{opp.get('deadline')}`")
+                    st.markdown(f"**🤖 Gemini AI Reasoning:**  \n*{opp.get('reason')}*")
+                with col_b:
+                    st.markdown(f"<h2 style='color: {badge_color}; text-align: center;'>{score}</h2>", unsafe_allow_html=True)
+                    st.markdown("<p style='text-align: center;'>Relevance Score</p>", unsafe_allow_html=True)
+                    st.link_button("🌐 View Opportunity", url=opp.get("url", "#"), use_container_width=True)
+    else:
+        st.info("No opportunities available. Click **Run Agent Now** to load sample data.")
+
+# ==========================================
+# 5. Study Knowledge Vault Page
+# ==========================================
+elif page == "📚 Study Knowledge Vault":
+    st.title("📚 Study Knowledge Vault (AI Assistant)")
+    st.markdown("Upload lecture notes, research papers, or documentation PDFs. Pathfinder extracts and indexes them into your **local vector memory**, allowing you to ask questions answered strictly from your personal study files.")
+    
+    col_up, col_list = st.columns([2, 1])
+    with col_up:
+        st.subheader("📤 Upload Study Document")
+        uploaded_file = st.file_uploader("Choose a PDF or TXT file", type=["pdf", "txt", "md"])
+        if uploaded_file is not None:
+            if st.button("📥 Index into Study Vault", type="primary"):
+                with st.spinner(f"Extracting text and indexing `{uploaded_file.name}`..."):
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                    res = fetch_api("/upload", method="POST", files=files)
+                    if res and res.get("status") == "success":
+                        st.success(f"✅ Successfully indexed {res.get('chunks_ingested')} text chunks into your Study Vault!")
+                        
+    with col_list:
+        st.subheader("🗂️ Ingested Documents")
+        vault_docs = fetch_api("/vault/documents") or {"documents": [], "count": 0}
+        if vault_docs["documents"]:
+            for d in vault_docs["documents"]:
+                st.write(f"📄 `{d}`")
+        else:
+            st.caption("No study files uploaded yet.")
+            
+    st.markdown("---")
+    st.subheader("💬 Ask Your Knowledge Vault")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            if "sources" in message and message["sources"]:
+                st.caption(f"📚 Cited Sources: {', '.join(message['sources'])}")
+                
+    if prompt := st.chat_input("Ask a question about your uploaded study notes..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            
+        with st.chat_message("assistant"):
+            with st.spinner("Searching study vectors and synthesizing answer..."):
+                res = fetch_api("/ask", method="POST", json_data={"question": prompt})
+                if res:
+                    ans = res.get("answer", "No answer generated.")
+                    srcs = res.get("sources", [])
+                    st.markdown(ans)
+                    if srcs:
+                        st.caption(f"📚 Cited Sources: {', '.join(srcs)}")
+                    st.session_state.messages.append({"role": "assistant", "content": ans, "sources": srcs})
+
+# ==========================================
+# 6. Learning Planner Page
+# ==========================================
+elif page == "🗓️ Learning Planner":
+    st.title("🗓️ AI Learning Planner")
+    st.markdown("Input any technical skill or topic you want to master. Your AI assistant will build a comprehensive weekly roadmap with prerequisites, tasks, and portfolio projects.")
+    
+    tab_gen, tab_saved = st.tabs(["⚡ Generate New Roadmap", "📚 Saved Roadmaps"])
+    
+    with tab_gen:
+        with st.form("roadmap_form"):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                topic = st.text_input("Topic to Learn", placeholder="e.g., Web Development, Artificial Intelligence, Mobile Apps, or Cloud Computing")
+            with col2:
+                duration = st.slider("Duration (Weeks)", min_value=1, max_value=8, value=4)
+                
+            gen_btn = st.form_submit_button("⚡ Generate AI Roadmap", type="primary")
+            if gen_btn and topic:
+                with st.spinner(f"Creating and saving a custom {duration}-week study plan for '{topic}'..."):
+                    res = fetch_api("/roadmap", method="POST", json_data={"topic": topic, "duration_weeks": duration})
+                    if res:
+                        st.session_state["active_roadmap"] = res
+                        st.success("✅ Roadmap generated and saved to your personal library!")
+                        
+        if "active_roadmap" in st.session_state:
+            rm = st.session_state["active_roadmap"]
+            st.markdown(f"## 🎯 Study Roadmap: **{rm.get('topic')}**")
+            
+            st.subheader("📌 Prerequisites")
+            for p in rm.get("prerequisites", []):
+                st.markdown(f"- ✅ `{p}`")
+                
+            st.subheader("📅 Weekly Timeline")
+            for w in rm.get("weekly_roadmap", []):
+                with st.expander(f"Week {w.get('week', '')}: {w.get('focus', '')}", expanded=True):
+                    for t in w.get("tasks", []):
+                        st.markdown(f"  - 🔹 {t}")
+                        
+            col_proj, col_res = st.columns(2)
+            with col_proj:
+                st.subheader("🛠️ Hands-On Portfolio Projects")
+                for proj in rm.get("mini_projects", []):
+                    st.markdown(f"- 🚀 **{proj}**")
+            with col_res:
+                st.subheader("🔗 Recommended Resources")
+                for r in rm.get("resources", []):
+                    st.markdown(f"- 📖 `{r}`")
+                    
+    with tab_saved:
+        st.subheader("📚 Previously Saved Study Roadmaps")
+        saved_rms = fetch_api("/roadmaps") or []
+        if saved_rms:
+            for r in saved_rms:
+                with st.expander(f"📖 Roadmap: {r.get('topic')}"):
+                    st.code(r.get('content'), language="json")
+        else:
+            st.info("No roadmaps saved yet. Use the tab above to generate one!")
+
+# ==========================================
+# 7. Settings & Reference Page
+# ==========================================
+elif page == "⚙️ Settings & Reference":
+    st.title("⚙️ System Settings & Quick Reference")
+    st.markdown("Manage your network connection and background automation frequency.")
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.subheader("🔌 Server Connection Settings")
+        st.code(f"AI Server URL: {API_BASE}", language="text")
+        st.caption("Change via API_BASE_URL environment variable if running on a custom network host.")
+    with col_b:
+        st.subheader("⚡ Autonomous Scouting Control")
+        if st.button("🔄 Trigger Scouting Pass Now", use_container_width=True):
+            res = fetch_api("/scheduler/trigger", method="POST")
+            if res:
+                st.success(f"⚡ {res.get('message')}")
+    
+    st.markdown("---")
+    st.subheader("📖 Quick Reference & Setup Guide")
+    st.markdown("""
+    1. **AI Intelligence Key**: To unlock live LLM reasoning, get a free API key at [Google AI Studio](https://aistudio.google.com/) and add it to `.env` as `GEMINI_API_KEY=AIzaSy...`.
+    2. **Discord Alerts**: To receive real-time webhook notifications on your mobile device, add your Discord channel webhook URL to `.env` as `DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...`.
+    3. **Local Memory Storage**: All profile preferences, learning roadmaps, and study vectors are stored privately and securely on your device.
+    4. **Server Status**: Both the AI Server and Web UI run independently to ensure high responsiveness and zero-latency UI updates.
+    """)
