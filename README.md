@@ -64,7 +64,7 @@ At the same time, it acts as your personal study assistant — ingest any PDF or
 - A free [Google Gemini API key](https://aistudio.google.com/) *(AI features)*
 - A [Discord Webhook URL](https://support.discord.com/hc/en-us/articles/228383668) *(optional, for alerts)*
 
-### Setup (Windows PowerShell)
+### Setup
 
 ```powershell
 # 1. Clone the repo
