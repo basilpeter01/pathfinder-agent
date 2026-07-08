@@ -1,3 +1,5 @@
+import re
+import json
 from typing import Dict, Any, TypedDict, Optional
 from sqlalchemy.orm import Session
 from memory.sqlite import SessionLocal, get_user_profile, save_roadmap
@@ -57,15 +59,43 @@ def scout_node(state: AgentState) -> AgentState:
 
 def planner_node(state: AgentState) -> AgentState:
     """Generate and store learning roadmap."""
-    topic = state["user_input"].replace("learn", "").replace("roadmap for", "").replace("how to", "").strip()
-    if not topic:
-        topic = "FastAPI & AI Agents"
+    text = state["user_input"]
+    for phrase in [
+        "create a study roadmap for", "create study roadmap for", "create a roadmap for", "create roadmap for",
+        "study roadmap for", "roadmap for", "how to learn", "how to master", "teach me how to", "teach me",
+        "learn about", "learn", "study plan for", "study plan", "guide for", "guide on",
+        "give me a roadmap for", "give me a roadmap to learn", "create a study"
+    ]:
+        pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        text = pattern.sub("", text)
+    topic = " ".join(text.split()).strip(" :-.")
+    if not topic or len(topic) < 2:
+        topic = state["user_input"].strip()
         
     db = SessionLocal()
     try:
         roadmap = generate_learning_roadmap(topic, weeks=4)
-        save_roadmap(db, topic, str(roadmap))
-        state["response"] = f"🎯 Created a custom 4-week study roadmap for **{topic}**! Check the Learning Planner tab to view timeline, prerequisites, and mini-capstone projects."
+        save_roadmap(db, topic, json.dumps(roadmap, indent=2))
+        
+        prereqs = ", ".join([f"`{p}`" for p in roadmap.get("prerequisites", [])])
+        weeks_md = ""
+        for w in roadmap.get("weekly_roadmap", []):
+            week_num = w.get("week", "")
+            focus = w.get("focus", "")
+            tasks = "\n".join([f"  - 🔹 {t}" for t in w.get("tasks", [])])
+            weeks_md += f"\n**Week {week_num}: {focus}**\n{tasks}\n"
+            
+        projects = ", ".join([f"**{p}**" for p in roadmap.get("mini_projects", [])])
+        resources = ", ".join([f"`{r}`" for r in roadmap.get("resources", [])])
+        
+        state["response"] = (
+            f"🎯 **Created a custom 4-week study roadmap for [{topic}]!**\n\n"
+            f"📌 **Prerequisites:** {prereqs}\n"
+            f"{weeks_md}\n"
+            f"🛠️ **Mini-Projects:** {projects}\n"
+            f"🔗 **Recommended Resources:** {resources}\n\n"
+            f"*💡 Tip: This roadmap has been saved to your local database! You can review or track it anytime under the **🗓️ Learning Planner** tab.*"
+        )
         state["metadata"]["roadmap_topic"] = topic
     except Exception as e:
         state["response"] = f"Planner error: {e}"

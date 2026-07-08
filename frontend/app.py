@@ -70,9 +70,10 @@ def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files:
             res = requests.get(url, timeout=10)
         elif method == "POST":
             if files:
-                res = requests.post(url, files=files, timeout=30)
+                res = requests.post(url, files=files, timeout=60)
             else:
-                res = requests.post(url, json=json_data, timeout=15)
+                # Scout pipeline + Gemini scoring can take 20-30s — use a generous timeout
+                res = requests.post(url, json=json_data, timeout=60)
         if res.status_code == 200:
             return res.json()
         else:
@@ -133,6 +134,7 @@ if page == "🏠 Dashboard & Overview":
     st.markdown("Your autonomous AI career and study companion designed to accelerate student growth.")
     
     profile = fetch_api("/profile") or {}
+    # /opportunities no longer auto-runs the pipeline — just shows what's already stored
     opps = fetch_api("/opportunities") or []
     vault_docs = fetch_api("/vault/documents") or {"count": 0}
     notifs = fetch_api("/notifications") or []
@@ -193,7 +195,13 @@ if page == "🏠 Dashboard & Overview":
                         """, unsafe_allow_html=True)
                         st.divider()
             else:
-                st.info("No opportunities ranked yet. Head to the **Opportunity Scout** to trigger the AI agent!")
+                st.info("No opportunities ranked yet. Head to **🧭 Opportunity Scout** in the sidebar and click **Run Agent Now** to fetch and rank live opportunities!")
+                if st.button("🚀 Run Opportunity Scout Now", type="primary"):
+                    with st.spinner("Scouting and scoring opportunities — this may take 20–30 seconds..."):
+                        res = fetch_api("/run-agent", method="POST")
+                        if res:
+                            st.success(f"⚡ {res.get('message', 'Scout complete!')}")
+                            st.rerun()
                 
         with right_col:
             st.subheader("🎯 Active Profile Summary")

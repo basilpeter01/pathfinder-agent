@@ -1,5 +1,6 @@
 import os
 import shutil
+import json
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -65,9 +66,8 @@ def update_profile(profile: ProfileSchema, db: Session = Depends(get_db)):
 
 @app.get("/opportunities")
 def list_opportunities(db: Session = Depends(get_db)):
+    """Return stored opportunities. Does NOT auto-trigger the scout pipeline to avoid timeouts."""
     opps = get_stored_opportunities(db)
-    if not opps:
-        opps = run_opportunity_scout_pipeline(db)
     return opps
 
 @app.post("/run-agent")
@@ -131,7 +131,7 @@ def ask_question(request: QuestionRequest):
 def create_roadmap(request: RoadmapRequest, db: Session = Depends(get_db)):
     """Generate and store a structured study roadmap."""
     roadmap_data = generate_learning_roadmap(request.topic, request.duration_weeks)
-    save_roadmap(db, request.topic, str(roadmap_data))
+    save_roadmap(db, request.topic, json.dumps(roadmap_data, indent=2))
     return RoadmapResponse(**roadmap_data)
 
 @app.get("/roadmaps")
