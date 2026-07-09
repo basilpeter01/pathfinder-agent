@@ -14,7 +14,7 @@ from memory.lancedb import query_vault, list_vault_documents
 from rag.ingest import process_and_ingest_file, UPLOADS_DIR
 from services.gemini import answer_question_with_rag, generate_learning_roadmap
 from agent.graph import run_agent_workflow
-from scheduler.jobs import start_scheduler, stop_scheduler, get_scheduler_status, scheduled_scout_job
+from scheduler.jobs import start_scheduler, stop_scheduler, get_scheduler_status, scheduled_scout_job, manual_scout_job
 from services.discord import get_notification_logs
 
 @asynccontextmanager
@@ -163,8 +163,8 @@ def scheduler_status():
 
 @app.post("/scheduler/trigger")
 def trigger_scheduler_job():
-    """Manually trigger background scheduled job immediately."""
-    scheduled_scout_job()
+    """Manually trigger scout with Gemini LLM scoring (for user-initiated runs)."""
+    manual_scout_job()
     return {"status": "success", "message": "Scouting pass executed successfully."}
 
 @app.get("/notifications")

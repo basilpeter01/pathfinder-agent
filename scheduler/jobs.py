@@ -12,14 +12,26 @@ scheduler = BackgroundScheduler()
 _is_running = False
 
 def scheduled_scout_job():
-    """Background cron job: open DB session, run scout pipeline, send alerts & log."""
-    print(f"[APScheduler] Running background opportunity scout job...")
+    """Background cron job: uses heuristic scoring only (zero API calls) to preserve Free Tier quota."""
+    print(f"[APScheduler] Running background opportunity scout job (heuristic mode)...")
     db = SessionLocal()
     try:
-        opps = run_opportunity_scout_pipeline(db)
+        opps = run_opportunity_scout_pipeline(db, use_llm=False)
         print(f"[APScheduler] Scout completed. Evaluated {len(opps)} opportunities.")
     except Exception as e:
         print(f"[APScheduler Error] Scout job failed: {e}")
+    finally:
+        db.close()
+
+def manual_scout_job():
+    """Manually-triggered scout: uses Gemini LLM for top opportunity scoring."""
+    print(f"[Manual Scout] Running user-triggered opportunity scout (LLM mode)...")
+    db = SessionLocal()
+    try:
+        opps = run_opportunity_scout_pipeline(db, use_llm=True)
+        print(f"[Manual Scout] Completed. Evaluated {len(opps)} opportunities with LLM scoring.")
+    except Exception as e:
+        print(f"[Manual Scout Error] Scout job failed: {e}")
     finally:
         db.close()
 

@@ -47,7 +47,7 @@ def scout_node(state: AgentState) -> AgentState:
     """Execute autonomous opportunity scout pipeline."""
     db = SessionLocal()
     try:
-        opps = run_opportunity_scout_pipeline(db)
+        opps = run_opportunity_scout_pipeline(db, use_llm=True)
         top_title = opps[0].title if opps else "No opportunities found"
         state["response"] = f"⚡ Autonomous Scout Completed! Evaluated and ranked {len(opps)} opportunities against your profile. Top match: **{top_title}**."
         state["metadata"]["opportunities_count"] = len(opps)

@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import requests
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -67,8 +68,14 @@ def fetch_live_web_opportunities() -> List[Dict[str, Any]]:
 
     return live_opps
 
-def run_opportunity_scout_pipeline(db: Session) -> List[OpportunityDB]:
-    """Autonomous Opportunity Scout Pipeline: Fetch Live -> AI Evaluate -> Rank -> Save -> Notify & Log."""
+def run_opportunity_scout_pipeline(db: Session, use_llm: bool = False) -> List[OpportunityDB]:
+    """Autonomous Opportunity Scout Pipeline: Fetch Live -> AI Evaluate -> Rank -> Save -> Notify & Log.
+    
+    Args:
+        use_llm: If True, scores top 2 opportunities using Gemini API (manual scout only).
+                 If False (default for background scheduler), uses local heuristic scoring only
+                 to preserve Free Tier API quota for user-initiated actions.
+    """
     print("[Scout Pipeline] Attempting to fetch live opportunities from public web APIs...")
     raw_opps = fetch_live_web_opportunities()
     
@@ -95,8 +102,12 @@ def run_opportunity_scout_pipeline(db: Session) -> List[OpportunityDB]:
     }
     
     scored_opps = []
-    for opp in raw_opps:
-        eval_res = score_opportunity_with_llm(user_dict, opp)
+    for idx, opp in enumerate(raw_opps):
+        # Use LLM only for top 2 in manual scout mode; always heuristic in background mode
+        should_use_llm = use_llm and (idx < 2)
+        if should_use_llm and idx > 0:
+            time.sleep(3.0)  # Rate limit pause between LLM requests (manual scout only)
+        eval_res = score_opportunity_with_llm(user_dict, opp, use_llm=should_use_llm)
         schema = OpportunitySchema(
             title=opp.get("title", "Untitled"),
             company=opp.get("company", "Unknown"),

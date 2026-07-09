@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
@@ -12,6 +13,7 @@ except ImportError:
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
 def _is_api_key_valid() -> bool:
     if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here" or "your_" in GEMINI_API_KEY:
@@ -27,7 +29,26 @@ def _get_client() -> Optional[Any]:
         print(f"Warning: Failed to create Google GenAI client: {e}")
         return None
 
-def score_opportunity_with_llm(user_profile: Dict[str, Any], opp: Dict[str, Any]) -> Dict[str, Any]:
+def _generate_content_with_retry(client: Any, prompt: str, max_retries: int = 3) -> str:
+    """Helper to call Gemini API with automatic retry on SSL/network drops or transient errors."""
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt,
+            )
+            return response.text.strip()
+        except Exception as e:
+            last_err = e
+            err_str = str(e)
+            if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                raise e
+            print(f"[Gemini API Retry {attempt+1}/{max_retries}] Network/SSL drop ({e}). Retrying...")
+            time.sleep(1.5 * (attempt + 1))
+    raise last_err
+
+def score_opportunity_with_llm(user_profile: Dict[str, Any], opp: Dict[str, Any], use_llm: bool = True) -> Dict[str, Any]:
     """Score an opportunity against user profile using Gemini or fallback rule-based engine."""
     title = opp.get("title", "")
     company = opp.get("company", "")
@@ -35,7 +56,7 @@ def score_opportunity_with_llm(user_profile: Dict[str, Any], opp: Dict[str, Any]
     interests = user_profile.get("interests", "")
     domains = user_profile.get("preferred_domains", "")
 
-    client = _get_client()
+    client = _get_client() if use_llm else None
     if not client:
         # Fallback heuristic scoring when API key is missing or invalid
         score = 50.0
@@ -62,27 +83,13 @@ def score_opportunity_with_llm(user_profile: Dict[str, Any], opp: Dict[str, Any]
         return {"score": final_score, "reason": f"[Rule Fallback] {reason_str}"}
 
     try:
-        prompt = f"""You are an autonomous student career advisor.
-Evaluate the following opportunity for a student and return a relevance score between 0 and 100, along with a concise 1-sentence explanation reason.
-
-Student Profile:
-- Skills: {skills}
-- Interests: {interests}
-- Preferred Domains: {domains}
-
-Opportunity:
-- Title: {title}
-- Company: {company}
-- Source: {opp.get('source', '')}
-
-Return ONLY a valid JSON object with exact keys "score" (number 0-100) and "reason" (string). Example:
-{{"score": 92, "reason": "Strong backend and AI match for student capstone goals."}}
-"""
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
+        prompt = (
+            f"Score this job opportunity for a student (0-100). "
+            f"Skills: {skills[:120]}. Domains: {domains[:80]}.\n"
+            f"Job: {title} at {company}.\n"
+            f"Reply ONLY with JSON: {{\"score\": <int>, \"reason\": \"<1 sentence>\"}}"
         )
-        text = response.text.strip()
+        text = _generate_content_with_retry(client, prompt)
         if text.startswith("```json"):
             text = text[7:-3].strip()
         elif text.startswith("```"):
@@ -105,20 +112,14 @@ def answer_question_with_rag(question: str, context_chunks: List[str]) -> str:
         return f"[Offline RAG Preview] Found {len(context_chunks)} relevant chunk(s) in your Knowledge Vault matching '{question}':\n\n1. {context_chunks[0][:300]}...\n\n(Configure GEMINI_API_KEY in .env for full synthesized LLM answers!)"
 
     try:
-        prompt = f"""You are Pathfinder AI, a personal RAG study assistant.
-Answer the student's question strictly using ONLY the information provided in the context below. Do not use outside knowledge. If the answer cannot be found in the context, state that clearly.
-
-Context Chunks from Uploaded Vault:
-{context_text}
-
-Student Question: {question}
-
-Synthesized Answer:"""
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
+        # Limit context to first 1500 chars to reduce token usage
+        context_trimmed = context_text[:1500]
+        prompt = (
+            f"Answer using ONLY the context below. If not found, say so.\n"
+            f"Context: {context_trimmed}\n"
+            f"Question: {question}\nAnswer:"
         )
-        return response.text.strip()
+        return _generate_content_with_retry(client, prompt)
     except Exception as e:
         return f"[RAG Error: {e}] Relevant context excerpt: {context_chunks[0][:250]}..."
 
@@ -141,23 +142,14 @@ def generate_learning_roadmap(topic: str, weeks: int = 4) -> Dict[str, Any]:
         }
 
     try:
-        prompt = f"""Create a detailed {weeks}-week learning roadmap for a student who wants to master: {topic}.
-Return ONLY a valid JSON object with the following exact schema:
-{{
-  "topic": "{topic}",
-  "prerequisites": ["list of strings"],
-  "weekly_roadmap": [
-    {{"week": 1, "focus": "string", "tasks": ["string", "string"]}},
-    {{"week": 2, "focus": "string", "tasks": ["string", "string"]}}
-  ],
-  "mini_projects": ["project 1", "project 2"],
-  "resources": ["resource 1", "resource 2"]
-}}"""
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
+        prompt = (
+            f"{weeks}-week JSON roadmap for: {topic}.\n"
+            f"Return ONLY this JSON schema (no extra text):\n"
+            f'{{"topic":"{topic}","prerequisites":["str"],'
+            f'"weekly_roadmap":[{{"week":1,"focus":"str","tasks":["str"]}}],'
+            f'"mini_projects":["str"],"resources":["str"]}}'
         )
-        text = response.text.strip()
+        text = _generate_content_with_retry(client, prompt)
         if text.startswith("```json"):
             text = text[7:-3].strip()
         elif text.startswith("```"):
