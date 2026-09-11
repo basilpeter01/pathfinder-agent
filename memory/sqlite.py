@@ -24,32 +24,16 @@ def init_db():
         user = db.query(UserDB).first()
         if not user:
             default_user = UserDB(
-                name="User",
-                skills="General Computing, Problem Solving, Software Basics",
+                name="Student",
+                skills="General Computing, Problem Solving, Software Development",
                 interests="Technology, Software Engineering, Innovation",
-                preferred_domains="General Software, Tech Solutions",
+                preferred_domains="Software Engineering, Technology Solutions",
                 preferred_location="Remote / Flexible",
                 notification_preference="Discord"
             )
             db.add(default_user)
             
             # Seed default interest scores
-            default_scores = [
-                InterestScoreDB(topic="Software Development", score=80.0),
-                InterestScoreDB(topic="Technology", score=85.0),
-                InterestScoreDB(topic="Web Development", score=75.0),
-                InterestScoreDB(topic="Innovation", score=70.0)
-            ]
-            db.add_all(default_scores)
-            db.commit()
-        elif user.name == "Alex River":
-            # Automatically migrate legacy Alex River demo database to generic Hello User
-            user.name = "Hello User"
-            user.skills = "General Computing, Problem Solving, Software Basics"
-            user.interests = "Technology, Software Engineering, Innovation"
-            user.preferred_domains = "General Software, Tech Solutions"
-            user.preferred_location = "Remote / Flexible"
-            db.query(InterestScoreDB).delete()
             default_scores = [
                 InterestScoreDB(topic="Software Development", score=80.0),
                 InterestScoreDB(topic="Technology", score=85.0),
