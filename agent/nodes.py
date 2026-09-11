@@ -6,6 +6,7 @@ from memory.sqlite import SessionLocal, get_user_profile, save_roadmap
 from services.opportunities import run_opportunity_scout_pipeline
 from services.gemini import answer_question_with_rag, generate_learning_roadmap
 from memory.lancedb import query_vault
+from services.logger import log_event
 
 class AgentState(TypedDict):
     user_input: str
@@ -23,9 +24,11 @@ def load_profile_node(state: AgentState) -> AgentState:
         state["metadata"]["user_name"] = user.name
         state["metadata"]["skills"] = user.skills
         state["metadata"]["domains"] = user.preferred_domains
+        log_event("INFO", "AGENT", f"Node: 'load_profile' -> Loaded profile for '{user.name}'")
     except Exception as e:
         state["profile_loaded"] = False
         state["metadata"]["error"] = str(e)
+        log_event("ERROR", "AGENT", f"Node: 'load_profile' failed | error: {e}")
     finally:
         db.close()
     return state
@@ -41,18 +44,22 @@ def determine_intent_node(state: AgentState) -> AgentState:
     else:
         # Default to RAG study question answering
         state["intent"] = "question"
+    log_event("INFO", "AGENT", f"Node: 'determine_intent' -> Routed to '{state['intent']}' workflow")
     return state
 
 def scout_node(state: AgentState) -> AgentState:
     """Execute autonomous opportunity scout pipeline."""
+    log_event("INFO", "AGENT", "Node: 'scout' -> Executing opportunity scout workflow")
     db = SessionLocal()
     try:
         opps = run_opportunity_scout_pipeline(db, use_llm=True)
         top_title = opps[0].title if opps else "No opportunities found"
-        state["response"] = f"⚡ Autonomous Scout Completed! Evaluated and ranked {len(opps)} opportunities against your profile. Top match: **{top_title}**."
+        state["response"] = f"Autonomous Scout Completed! Evaluated and ranked {len(opps)} opportunities against your profile. Top match: **{top_title}**."
         state["metadata"]["opportunities_count"] = len(opps)
+        log_event("INFO", "AGENT", f"Node: 'scout' -> Completed. Evaluated {len(opps)} items")
     except Exception as e:
         state["response"] = f"Scout error: {e}"
+        log_event("ERROR", "AGENT", f"Node: 'scout' failed | error: {e}")
     finally:
         db.close()
     return state
@@ -72,10 +79,12 @@ def planner_node(state: AgentState) -> AgentState:
     if not topic or len(topic) < 2:
         topic = state["user_input"].strip()
         
+    log_event("INFO", "AGENT", f"Node: 'planner' -> Generating roadmap for: '{topic}'")
     db = SessionLocal()
     try:
         roadmap = generate_learning_roadmap(topic, weeks=4)
         save_roadmap(db, topic, json.dumps(roadmap, indent=2))
+        log_event("INFO", "AGENT", f"Node: 'planner' -> Roadmap generated and saved for '{topic}'")
         
         prereqs = ", ".join([f"`{p}`" for p in roadmap.get("prerequisites", [])])
         weeks_md = ""
@@ -99,18 +108,22 @@ def planner_node(state: AgentState) -> AgentState:
         state["metadata"]["roadmap_topic"] = topic
     except Exception as e:
         state["response"] = f"Planner error: {e}"
+        log_event("ERROR", "AGENT", f"Node: 'planner' failed | error: {e}")
     finally:
         db.close()
     return state
 
 def rag_node(state: AgentState) -> AgentState:
-    """Retrieve chunks from ChromaDB Knowledge Vault and answer via Gemini."""
+    """Retrieve chunks from LanceDB Knowledge Vault and answer via Gemini."""
     query = state["user_input"]
+    log_event("INFO", "AGENT", f"Node: 'rag' -> Searching Knowledge Vault for: \"{query[:40]}...\"")
     retrieved = query_vault(query, n_results=3)
     chunks = [r["text"] for r in retrieved]
     sources = list(set([r["source"] for r in retrieved]))
+    log_event("INFO", "AGENT", f"Node: 'rag' -> Retrieved {len(chunks)} context chunks from {len(sources)} sources")
     
     ans = answer_question_with_rag(query, chunks)
     state["response"] = ans
     state["metadata"]["sources"] = sources
+    log_event("INFO", "AGENT", f"Node: 'rag' -> Completed answer generation")
     return state
