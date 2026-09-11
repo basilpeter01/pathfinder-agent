@@ -12,7 +12,6 @@ uploads/*
 .venv/
 venv/
 env/
-docs/
 .streamlit/secrets.toml
 .DS_Store
 Thumbs.db
