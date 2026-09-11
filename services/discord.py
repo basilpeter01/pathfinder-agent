@@ -1,9 +1,11 @@
 import os
+import time
 import requests
 from datetime import datetime
 from sqlalchemy.orm import Session
 from models.schemas import NotificationDB, OpportunitySchema
 from dotenv import load_dotenv
+from services.logger import log_event
 
 load_dotenv()
 
@@ -33,28 +35,29 @@ def send_discord_notification(db: Session, opp: OpportunitySchema) -> bool:
     # 1. Log to SQLite database
     msg_text = f"High-impact opportunity found ({score}/100): {title} at {company}. Reason: {reason}"
     db_notif = NotificationDB(
-        title=f"🚨 New Opportunity Alert: {company}",
+        title=f"New Opportunity Alert: {company}",
         message=msg_text,
         url=url,
         timestamp=timestamp
     )
     db.add(db_notif)
     db.commit()
+    log_event("INFO", "DISCORD", f"Logged opportunity alert to SQLite | '{title[:35]}' at {company} (Score: {score})")
     
     # 2. Send via Discord Webhook if configured
     if not _is_webhook_valid():
-        print(f"[Offline Notification Logged] {msg_text}")
+        log_event("INFO", "DISCORD", f"Webhook URL unconfigured. Offline notification persisted to database.")
         return True
         
     try:
         embed = {
-            "title": f"🚨 New High-Impact Internship / Capstone Found!",
+            "title": f"New High-Impact Internship / Capstone Found!",
             "description": f"**[{title}]({url})** at **{company}**",
-            "color": 3066993, # Green / Blue
+            "color": 3066993,
             "fields": [
-                {"name": "⭐ Relevance Score", "value": f"**{score} / 100**", "inline": True},
-                {"name": "📅 Deadline", "value": f"`{opp.deadline}`", "inline": True},
-                {"name": "💡 Gemini Reasoning", "value": reason, "inline": False}
+                {"name": "Relevance Score", "value": f"**{score} / 100**", "inline": True},
+                {"name": "Deadline", "value": f"`{opp.deadline}`", "inline": True},
+                {"name": "Gemini Reasoning", "value": reason, "inline": False}
             ],
             "footer": {"text": f"Pathfinder AI Scout • {timestamp}"}
         }
@@ -65,14 +68,19 @@ def send_discord_notification(db: Session, opp: OpportunitySchema) -> bool:
             "embeds": [embed]
         }
         
+        t0 = time.time()
+        masked_url = DISCORD_WEBHOOK_URL[:33] + "..." if len(DISCORD_WEBHOOK_URL) > 33 else "Discord Webhook"
+        log_event("INFO", "DISCORD", f"Outbound request -> POST {masked_url} | item: '{title[:30]}'")
         res = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+        dur = int((time.time() - t0) * 1000)
         if res.status_code in [200, 204]:
+            log_event("INFO", "DISCORD", f"Webhook notification sent successfully (HTTP {res.status_code}, {dur}ms)")
             return True
         else:
-            print(f"Discord webhook error: {res.status_code} - {res.text}")
+            log_event("WARNING", "DISCORD", f"Webhook notification failed (HTTP {res.status_code}, {dur}ms) | {res.text[:80]}")
             return False
     except Exception as e:
-        print(f"Failed to send Discord webhook: {e}")
+        log_event("ERROR", "DISCORD", f"Webhook delivery error | error: {e}")
         return False
 
 def get_notification_logs(db: Session, limit: int = 50):

@@ -32,6 +32,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from starlette.requests import Request
+import time
+from services.logger import log_event
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,6 +43,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests_middleware(request: Request, call_next):
+    t0 = time.time()
+    response = await call_next(request)
+    dur_ms = int((time.time() - t0) * 1000)
+    status_text = "OK" if response.status_code < 400 else "ERROR"
+    lvl = "INFO" if response.status_code < 400 else "ERROR"
+    # Skip noisy health check poll logs if desired, or keep all
+    if request.url.path not in ["/health"]:
+        log_event(lvl, "FASTAPI", f"{request.method} {request.url.path} - {response.status_code} {status_text} ({dur_ms}ms)")
+    return response
 
 @app.get("/")
 def root():
@@ -97,6 +113,13 @@ async def upload_document(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
             
         chunks_count = process_and_ingest_file(file_path, safe_filename)
+        if chunks_count == 0:
+            return {
+                "status": "error",
+                "filename": safe_filename,
+                "chunks_ingested": 0,
+                "message": f"Could not extract text or index chunks from '{safe_filename}'. Please verify the file contains readable text."
+            }
         return {
             "status": "success",
             "filename": safe_filename,

@@ -2,6 +2,7 @@ import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from memory.sqlite import SessionLocal
 from services.opportunities import run_opportunity_scout_pipeline
+from services.logger import log_event
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,25 +14,25 @@ _is_running = False
 
 def scheduled_scout_job():
     """Background cron job: uses heuristic scoring only (zero API calls) to preserve Free Tier quota."""
-    print(f"[APScheduler] Running background opportunity scout job (heuristic mode)...")
+    log_event("INFO", "SCHEDULER", f"Triggered background job: 'scheduled_scout' (interval: {SCOUT_INTERVAL_MINUTES}m)")
     db = SessionLocal()
     try:
         opps = run_opportunity_scout_pipeline(db, use_llm=False)
-        print(f"[APScheduler] Scout completed. Evaluated {len(opps)} opportunities.")
+        log_event("INFO", "SCHEDULER", f"Background scout completed: evaluated {len(opps)} opportunities")
     except Exception as e:
-        print(f"[APScheduler Error] Scout job failed: {e}")
+        log_event("ERROR", "SCHEDULER", f"Background scout job failed | error: {e}")
     finally:
         db.close()
 
 def manual_scout_job():
     """Manually-triggered scout: uses Gemini LLM for top opportunity scoring."""
-    print(f"[Manual Scout] Running user-triggered opportunity scout (LLM mode)...")
+    log_event("INFO", "SCHEDULER", "Triggered manual job: 'scout_opportunities' (LLM mode)")
     db = SessionLocal()
     try:
         opps = run_opportunity_scout_pipeline(db, use_llm=True)
-        print(f"[Manual Scout] Completed. Evaluated {len(opps)} opportunities with LLM scoring.")
+        log_event("INFO", "SCHEDULER", f"Manual scout completed: evaluated {len(opps)} opportunities with LLM")
     except Exception as e:
-        print(f"[Manual Scout Error] Scout job failed: {e}")
+        log_event("ERROR", "SCHEDULER", f"Manual scout job failed | error: {e}")
     finally:
         db.close()
 
@@ -48,7 +49,7 @@ def start_scheduler():
         )
         scheduler.start()
         _is_running = True
-        print(f"[APScheduler] Started background job loop (Interval: {SCOUT_INTERVAL_MINUTES} mins)")
+        log_event("INFO", "SCHEDULER", f"Started background job loop (Interval: {SCOUT_INTERVAL_MINUTES} mins)")
 
 def stop_scheduler():
     """Shutdown APScheduler background loop."""
@@ -56,7 +57,7 @@ def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
         _is_running = False
-        print("[APScheduler] Stopped background job loop.")
+        log_event("INFO", "SCHEDULER", "Stopped background job loop")
 
 def get_scheduler_status() -> dict:
     """Return status of background scheduler."""
