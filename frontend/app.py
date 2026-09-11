@@ -96,17 +96,24 @@ with st.sidebar:
     st.caption("Autonomous Student Growth Agent")
     st.markdown("---")
     
+    nav_options = [
+        "🏠 Dashboard & Overview",
+        "🤖 Autonomous AI Agent",
+        "👤 Student Profile",
+        "🧭 Opportunity Scout",
+        "📚 Study Knowledge Vault",
+        "🗓️ Learning Planner",
+        "⚙️ Settings & Reference"
+    ]
+    if "nav" not in st.session_state or st.session_state["nav"] not in nav_options:
+        st.session_state["nav"] = nav_options[0]
+        
     page = st.radio(
         "Navigation",
-        [
-            "🏠 Dashboard & Overview",
-            "🤖 Autonomous AI Agent",
-            "👤 Student Profile",
-            "🧭 Opportunity Scout",
-            "📚 Study Knowledge Vault",
-            "🗓️ Learning Planner",
-            "⚙️ Settings & Reference"
-        ]
+        nav_options,
+        index=nav_options.index(st.session_state["nav"]),
+        key="nav_radio",
+        on_change=lambda: st.session_state.update({"nav": st.session_state.get("nav_radio", nav_options[0])})
     )
     
     st.markdown("---")
@@ -139,15 +146,15 @@ if page == "🏠 Dashboard & Overview":
     vault_docs = fetch_api("/vault/documents") or {"count": 0}
     notifs = fetch_api("/notifications") or []
     
-    if profile.get('name') in ["Hello User", "Alex River", "Student", "", None]:
+    if profile.get('name') in ["Hello User", "Student", "", None]:
         with st.expander("👋 Welcome! Personalize Your Pathfinder Profile (Quick Setup)", expanded=True):
             st.markdown("We initialized your agent with generic software domains so it works out-of-the-box. Customize below to get tailored career recommendations!")
             col_a, col_b = st.columns(2)
             with col_a:
-                new_name = st.text_input("Your Name", value=profile.get("name", "Hello User"), key="ob_name")
-                new_domains = st.text_input("Preferred Career Domains", value=profile.get("preferred_domains", "General Software, Tech Solutions"), key="ob_domains")
+                new_name = st.text_input("Your Name", value=profile.get("name", "Student"), key="ob_name")
+                new_domains = st.text_input("Preferred Career Domains", value=profile.get("preferred_domains", "Software Engineering, Technology Solutions"), key="ob_domains")
             with col_b:
-                new_skills = st.text_input("Core Skills (comma separated)", value=profile.get("skills", "General Computing, Problem Solving, Software Basics"), key="ob_skills")
+                new_skills = st.text_input("Core Skills (comma separated)", value=profile.get("skills", "General Computing, Problem Solving, Software Development"), key="ob_skills")
                 new_interests = st.text_input("Passions & Interests", value=profile.get("interests", "Technology, Software Engineering, Innovation"), key="ob_interests")
             if st.button("🚀 Save & Personalize Agent", type="primary", use_container_width=True):
                 updated_data = {
@@ -319,6 +326,7 @@ elif page == "🧭 Opportunity Scout":
             res = fetch_api("/run-agent", method="POST")
             if res:
                 st.success(f"⚡ {res.get('message')}")
+                st.rerun()
                 
     st.markdown("---")
     
@@ -360,6 +368,10 @@ elif page == "📚 Study Knowledge Vault":
                     res = fetch_api("/upload", method="POST", files=files)
                     if res and res.get("status") == "success":
                         st.success(f"✅ Successfully indexed {res.get('chunks_ingested')} text chunks into your Study Vault!")
+                    elif res and res.get("status") == "error":
+                        st.error(f"❌ {res.get('message')}")
+                    else:
+                        st.error("❌ Failed to index document.")
                         
     with col_list:
         st.subheader("🗂️ Ingested Documents")
