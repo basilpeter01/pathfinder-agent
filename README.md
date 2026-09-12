@@ -189,9 +189,9 @@ Profiles, opportunities, roadmaps, and notification logs are all relational by n
 
 Every external dependency (Gemini API, Discord webhook, live web APIs) has a fallback:
 
-- **No Gemini key** → Rule-based opportunity scoring + offline RAG preview mode
-- **Live APIs down** → Falls back to `data/sample_opportunities.json` curated dataset
-- **No Discord webhook** → Notifications are logged to SQLite instead
+- **No Gemini key** → Dynamic profile-keyword heuristic opportunity scoring + offline RAG preview mode
+- **Live web scout** → Real-time ingestion from GitHub Search API and Remotive Jobs API
+- **No Discord webhook** → Notifications are logged to SQLite local memory instead
 - **LangGraph import failure** → Sequential fallback runner executes nodes in order
 
 This ensures the full UI and scheduler remain functional during judging even without API access.
@@ -255,7 +255,7 @@ pathfinder-agent/
 ├── frontend/
 │   └── app.py               # Streamlit 7-page dashboard
 ├── data/
-│   └── sample_opportunities.json  # Curated fallback dataset for offline/demo mode
+│   └── pathfinder.db        # SQLite local relational memory store
 ├── .env.example             # Environment variable template
 ├── requirements.txt         # All pinned Python dependencies
 └── guide.md                 # Full developer handbook (architecture, internals, FAQ)
