@@ -80,7 +80,7 @@ def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files:
             st.error(f"API Error ({res.status_code}): {res.text}")
             return None
     except requests.exceptions.ConnectionError:
-        st.error("❌ Cannot connect to Pathfinder Server. Please ensure your cloud service is active.")
+        st.error("Cannot connect to Pathfinder Server. Please ensure your cloud service is active.")
         return None
     except Exception as e:
         st.error(f"Error communicating with server: {e}")
@@ -147,7 +147,7 @@ if page == "Dashboard & Overview":
     notifs = fetch_api("/notifications") or []
     
     if profile.get('name') in ["User", "Student", "", None]:
-        with st.expander(" Welcome! Personalize Profile", expanded=True):
+        with st.expander("Welcome! Personalize Profile", expanded=True):
             st.markdown("Customize below to get recommendations!")
             col_a, col_b = st.columns(2)
             with col_a:
@@ -217,7 +217,8 @@ if page == "Dashboard & Overview":
             st.write(f"**Core Skills:** `{profile.get('skills', 'Computing Basics')}`")
             st.write(f"**Location Pref:** `{profile.get('preferred_location', 'Remote')}`")
             if st.button("Edit Profile Settings", use_container_width=True):
-                st.session_state["nav"] = "👤 Student Profile"
+                st.session_state["nav"] = "Student Profile"
+                st.session_state["nav_radio"] = "Student Profile"
                 st.rerun()
                 
     with tab_alerts:
@@ -272,8 +273,8 @@ elif page == "Autonomous AI Agent":
 # ==========================================
 # 3. Student Profile Page
 # ==========================================
-elif page == "👤 Student Profile":
-    st.title("👤 Student Profile & Interest Preferences")
+elif page == "Student Profile":
+    st.title("Student Profile & Interest Preferences")
     st.markdown("Customize your skills and career domains. These preferences are stored in your **local profile memory** and guide how hackathons and internships are ranked.")
     
     current_profile = fetch_api("/profile") or {}
@@ -447,7 +448,7 @@ elif page == "Learning Planner":
             for w in rm.get("weekly_roadmap", []):
                 with st.expander(f"Week {w.get('week', '')}: {w.get('focus', '')}", expanded=True):
                     for t in w.get("tasks", []):
-                        st.markdown(f"  - 🔹 {t}")
+                        st.markdown(f"  - {t}")
                         
             col_proj, col_res = st.columns(2)
             with col_proj:
@@ -455,7 +456,7 @@ elif page == "Learning Planner":
                 for proj in rm.get("mini_projects", []):
                     st.markdown(f"- **{proj}**")
             with col_res:
-                st.subheader("🔗 Recommended Resources")
+                st.subheader("Recommended Resources")
                 for r in rm.get("resources", []):
                     st.markdown(f"- `{r}`")
                     
@@ -478,7 +479,7 @@ elif page == "Settings & Reference":
     
     col_a, col_b = st.columns(2)
     with col_a:
-        st.subheader("🔌 Server Connection Settings")
+        st.subheader("Server Connection Settings")
         st.code(f"Server URL: {API_BASE}", language="text")
         st.caption("Change via API_BASE_URL environment variable if running on a custom network host.")
     with col_b:

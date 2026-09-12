@@ -91,19 +91,19 @@ def planner_node(state: AgentState) -> AgentState:
         for w in roadmap.get("weekly_roadmap", []):
             week_num = w.get("week", "")
             focus = w.get("focus", "")
-            tasks = "\n".join([f"  - 🔹 {t}" for t in w.get("tasks", [])])
+            tasks = "\n".join([f"  - {t}" for t in w.get("tasks", [])])
             weeks_md += f"\n**Week {week_num}: {focus}**\n{tasks}\n"
             
         projects = ", ".join([f"**{p}**" for p in roadmap.get("mini_projects", [])])
         resources = ", ".join([f"`{r}`" for r in roadmap.get("resources", [])])
         
         state["response"] = (
-            f"🎯 **Created a custom 4-week study roadmap for [{topic}]!**\n\n"
-            f"📌 **Prerequisites:** {prereqs}\n"
+            f"**Created a custom 4-week study roadmap for [{topic}]!**\n\n"
+            f"**Prerequisites:** {prereqs}\n"
             f"{weeks_md}\n"
-            f"🛠️ **Mini-Projects:** {projects}\n"
-            f"🔗 **Recommended Resources:** {resources}\n\n"
-            f"*💡 Tip: This roadmap has been saved to your local database! You can review or track it anytime under the **🗓️ Learning Planner** tab.*"
+            f"**Mini-Projects:** {projects}\n"
+            f"**Recommended Resources:** {resources}\n\n"
+            f"*Tip: This roadmap has been saved. You can review or track it anytime under the **Learning Planner** tab.*"
         )
         state["metadata"]["roadmap_topic"] = topic
     except Exception as e:
