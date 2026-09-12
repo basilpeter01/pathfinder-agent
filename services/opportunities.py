@@ -10,23 +10,7 @@ from services.gemini import score_opportunity_with_llm
 from services.discord import send_discord_notification
 from services.logger import log_event
 
-SAMPLE_JSON_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "sample_opportunities.json")
 
-def load_sample_opportunities() -> List[Dict[str, Any]]:
-    """Load mock opportunities from JSON and label source as Local Memory."""
-    if not os.path.exists(SAMPLE_JSON_PATH):
-        return []
-    try:
-        with open(SAMPLE_JSON_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            for item in data:
-                src = item.get("source", "Curated")
-                if not src.startswith("Local Memory"):
-                    item["source"] = f"Local Memory ({src})"
-            return data
-    except Exception as e:
-        log_event("ERROR", "SCOUT", f"Error reading sample opportunities | error: {e}")
-        return []
 
 def fetch_live_web_opportunities() -> List[Dict[str, Any]]:
     """Fetch live tech opportunities, hackathons, and open-source challenges from public web APIs."""
@@ -90,15 +74,11 @@ def run_opportunity_scout_pipeline(db: Session, use_llm: bool = False) -> List[O
     log_event("INFO", "SCOUT", "Executing opportunity scout pipeline...")
     raw_opps = fetch_live_web_opportunities()
     
-    # Only fall back to curated sample dataset if live web fetches returned 0 items (true offline mode)
     if not raw_opps:
-        log_event("WARNING", "SCOUT", "Live fetch returned 0 items (offline or rate limit). Falling back to local sample dataset.")
-        raw_opps = load_sample_opportunities()
-    else:
-        log_event("INFO", "SCOUT", f"Successfully fetched {len(raw_opps)} live opportunities from web APIs")
-            
-    if not raw_opps:
+        log_event("WARNING", "SCOUT", "Live web fetch returned 0 opportunities (network issue, offline, or API rate limit).")
         return []
+        
+    log_event("INFO", "SCOUT", f"Successfully fetched {len(raw_opps)} live opportunities from web APIs")
     
     user = get_user_profile(db)
     user_dict = {

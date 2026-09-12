@@ -146,30 +146,7 @@ if page == "Dashboard & Overview":
     vault_docs = fetch_api("/vault/documents") or {"count": 0}
     notifs = fetch_api("/notifications") or []
     
-    if profile.get('name') in ["User", "Student", "", None]:
-        with st.expander("Welcome! Personalize Profile", expanded=True):
-            st.markdown("Customize below to get recommendations!")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                new_name = st.text_input("Your Name", value=profile.get("name", "Student"), key="ob_name")
-                new_domains = st.text_input("Preferred Career Domains", value=profile.get("preferred_domains", "Software Engineering, Technology Solutions"), key="ob_domains")
-            with col_b:
-                new_skills = st.text_input("Core Skills (comma separated)", value=profile.get("skills", "General Computing, Problem Solving, Software Development"), key="ob_skills")
-                new_interests = st.text_input("Passions & Interests", value=profile.get("interests", "Technology, Software Engineering, Innovation"), key="ob_interests")
-            if st.button("Save & Personalize Agent", type="primary", use_container_width=True):
-                updated_data = {
-                    "name": new_name,
-                    "skills": new_skills,
-                    "interests": new_interests,
-                    "preferred_domains": new_domains,
-                    "preferred_location": profile.get("preferred_location", "Remote / Flexible"),
-                    "notification_preference": profile.get("notification_preference", "Discord")
-                }
-                res = fetch_api("/profile", method="POST", json_data=updated_data)
-                if res:
-                    st.success(f"Welcome aboard, {new_name}! Profile saved to memory.")
-                    st.rerun()
-        st.markdown("---")
+
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
