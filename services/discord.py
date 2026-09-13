@@ -20,29 +20,22 @@ def _is_webhook_valid() -> bool:
         return False
     return True
 
-def send_discord_notification(db: Session, opp: OpportunitySchema) -> bool:
-    """Send alert to Discord webhook if score > threshold, and log notification in SQLite DB."""
-    if opp.score < DISCORD_SCORE_THRESHOLD:
-        return False
-        
-    title = opp.title
-    company = opp.company
-    score = opp.score
-    reason = opp.reason
-    url = opp.url
+def send_agent_run_summary(db: Session, total_evaluated: int, top_opp: OpportunitySchema) -> bool:
+    """Send a single summary alert to Discord per agent run."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # 1. Log to SQLite database
-    msg_text = f"High-impact opportunity found ({score}/100): {title} at {company}. Reason: {reason}"
+    title = f"Scout Run Complete: {total_evaluated} found"
+    msg_text = f"Top match: {top_opp.title} at {top_opp.company}"
     db_notif = NotificationDB(
-        title=f"New Opportunity Alert: {company}",
+        title=title,
         message=msg_text,
-        url=url,
+        url=top_opp.url,
         timestamp=timestamp
     )
     db.add(db_notif)
     db.commit()
-    log_event("INFO", "DISCORD", f"Logged opportunity alert to SQLite | '{title[:35]}' at {company} (Score: {score})")
+    log_event("INFO", "DISCORD", f"Logged agent run summary to SQLite")
     
     # 2. Send via Discord Webhook if configured
     if not _is_webhook_valid():
@@ -51,13 +44,12 @@ def send_discord_notification(db: Session, opp: OpportunitySchema) -> bool:
         
     try:
         embed = {
-            "title": f"New High-Impact Internship / Capstone Found!",
-            "description": f"**[{title}]({url})** at **{company}**",
+            "title": f"Agent Scout Complete",
+            "description": f"The agent evaluated **{total_evaluated}** new opportunities.",
             "color": 3066993,
             "fields": [
-                {"name": "Relevance Score", "value": f"**{score} / 100**", "inline": True},
-                {"name": "Deadline", "value": f"`{opp.deadline}`", "inline": True},
-                {"name": "Gemini Reasoning", "value": reason, "inline": False}
+                {"name": "Top Opportunity", "value": f"[{top_opp.title}]({top_opp.url}) at **{top_opp.company}**", "inline": False},
+                {"name": "Relevance Score", "value": f"{top_opp.score}/100", "inline": True}
             ],
             "footer": {"text": f"Pathfinder AI Scout • {timestamp}"}
         }
@@ -70,14 +62,14 @@ def send_discord_notification(db: Session, opp: OpportunitySchema) -> bool:
         
         t0 = time.time()
         masked_url = DISCORD_WEBHOOK_URL[:33] + "..." if len(DISCORD_WEBHOOK_URL) > 33 else "Discord Webhook"
-        log_event("INFO", "DISCORD", f"Outbound request -> POST {masked_url} | item: '{title[:30]}'")
+        log_event("INFO", "DISCORD", f"Outbound request -> POST {masked_url} | summary")
         res = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
         dur = int((time.time() - t0) * 1000)
         if res.status_code in [200, 204]:
-            log_event("INFO", "DISCORD", f"Webhook notification sent successfully (HTTP {res.status_code}, {dur}ms)")
+            log_event("INFO", "DISCORD", f"Webhook summary sent successfully (HTTP {res.status_code}, {dur}ms)")
             return True
         else:
-            log_event("WARNING", "DISCORD", f"Webhook notification failed (HTTP {res.status_code}, {dur}ms) | {res.text[:80]}")
+            log_event("WARNING", "DISCORD", f"Webhook summary failed (HTTP {res.status_code}, {dur}ms) | {res.text[:80]}")
             return False
     except Exception as e:
         log_event("ERROR", "DISCORD", f"Webhook delivery error | error: {e}")
