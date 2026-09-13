@@ -32,13 +32,6 @@ def init_db():
                 notification_preference="Discord"
             )
             db.add(default_user)
-        elif user.name == "Student" and "General Computing" in (user.skills or ""):
-            # Auto-migrate legacy mock seed profile to empty state
-            user.name = ""
-            user.skills = ""
-            user.interests = ""
-            user.preferred_domains = ""
-            db.commit()
             
             # Seed default interest scores
             default_scores = [
