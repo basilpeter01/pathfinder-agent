@@ -101,3 +101,4 @@ class RoadmapResponse(BaseModel):
     weekly_roadmap: List[Dict[str, Any]]
     mini_projects: List[str]
     resources: List[str]
+
