@@ -80,11 +80,38 @@ def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files:
             st.error(f"API Error ({res.status_code}): {res.text}")
             return None
     except requests.exceptions.ConnectionError:
-        st.error("Cannot connect to Pathfinder Server. Please ensure your cloud service is active.")
+        st.error("Cannot connect to Server.")
         return None
     except Exception as e:
         st.error(f"Error communicating with server: {e}")
         return None
+
+def get_profile_data() -> dict:
+    """Fetch profile from backend API, with fallback to local SQLite and session cache if backend is offline."""
+    res = fetch_api("/profile")
+    if res and isinstance(res, dict) and res.get("name"):
+        st.session_state["cached_profile"] = res
+        return res
+    if "cached_profile" in st.session_state:
+        return st.session_state["cached_profile"]
+    # Direct local SQLite fallback if backend server is not running
+    try:
+        from memory.sqlite import SessionLocal, get_user_profile
+        db = SessionLocal()
+        user = get_user_profile(db)
+        data = {
+            "name": user.name or "",
+            "skills": user.skills or "",
+            "interests": user.interests or "",
+            "preferred_domains": user.preferred_domains or "",
+            "preferred_location": user.preferred_location or "Remote",
+            "notification_preference": user.notification_preference or "Discord"
+        }
+        db.close()
+        st.session_state["cached_profile"] = data
+        return data
+    except Exception:
+        return {}
 
 # ==========================================
 # Sidebar Navigation
@@ -105,15 +132,15 @@ with st.sidebar:
         "Learning Planner",
         "Settings & Reference"
     ]
-    if "nav" not in st.session_state or st.session_state["nav"] not in nav_options:
-        st.session_state["nav"] = nav_options[0]
+    if "nav_target" in st.session_state:
+        st.session_state["nav_radio"] = st.session_state.pop("nav_target")
+    elif "nav_radio" not in st.session_state or st.session_state["nav_radio"] not in nav_options:
+        st.session_state["nav_radio"] = nav_options[0]
         
     page = st.radio(
         "Navigation",
         nav_options,
-        index=nav_options.index(st.session_state["nav"]),
-        key="nav_radio",
-        on_change=lambda: st.session_state.update({"nav": st.session_state.get("nav_radio", nav_options[0])})
+        key="nav_radio"
     )
     
     st.markdown("---")
@@ -140,17 +167,17 @@ if page == "Dashboard & Overview":
     st.title("Pathfinder AI")
     st.markdown("Autonomous career and study companion for students.")
     
-    profile = fetch_api("/profile") or {}
+    profile = get_profile_data()
     # /opportunities just shows what's already stored
     opps = fetch_api("/opportunities") or []
     vault_docs = fetch_api("/vault/documents") or {"count": 0}
     notifs = fetch_api("/notifications") or []
     
-
-    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(label="Top Skills Tracked", value=len(str(profile.get("skills", "")).split(",")))
+        skills_raw = profile.get("skills", "")
+        skills_count = len([s for s in str(skills_raw).split(",") if s.strip()]) if skills_raw else 0
+        st.metric(label="Top Skills Tracked", value=skills_count)
     with col2:
         st.metric(label="Opportunities Ranked", value=len(opps))
     with col3:
@@ -160,12 +187,12 @@ if page == "Dashboard & Overview":
         
     st.markdown("---")
     
-    tab_overview, tab_alerts = st.tabs(["Ranked Opportunities", f"Notification & Webhook Logs ({len(notifs)})"])
+    tab_overview, tab_alerts = st.tabs(["Ranked Opportunities", f"Notification Logs ({len(notifs)})"])
     
     with tab_overview:
         left_col, right_col = st.columns([3, 2])
         with left_col:
-            st.subheader("Ranked Internships & Hackathons")
+            st.subheader("Events")
             if opps:
                 top_3 = opps[:3]
                 for idx, opp in enumerate(top_3):
@@ -179,28 +206,27 @@ if page == "Dashboard & Overview":
                         """, unsafe_allow_html=True)
                         st.divider()
             else:
-                st.info("No opportunities ranked yet. Head to **Opportunity Scout** in the sidebar and click **Run Agent Now** to fetch and rank live opportunities!")
+                st.info("No opportunities ranked at the moment.")
                 if st.button("Run Opportunity Scout Now", type="primary"):
-                    with st.spinner("Scouting and scoring opportunities — this may take 20–30 seconds..."):
+                    with st.spinner("Scouting and scoring opportunities..."):
                         res = fetch_api("/run-agent", method="POST")
                         if res:
-                            st.success(f"{res.get('message', 'Scout complete!')}")
+                            st.success(f"{res.get('message', 'Scout complete')}")
                             st.rerun()
                 
         with right_col:
             st.subheader("Active Profile Summary")
-            st.write(f"**Name:** `{profile.get('name', 'User')}`")
-            st.write(f"**Preferred Domains:** `{profile.get('preferred_domains', 'General Software')}`")
-            st.write(f"**Core Skills:** `{profile.get('skills', 'Computing Basics')}`")
-            st.write(f"**Location Pref:** `{profile.get('preferred_location', 'Remote')}`")
+            st.write(f"**Name:** `{profile.get('name') or '—'}`")
+            st.write(f"**Preferred Domains:** `{profile.get('preferred_domains') or '—'}`")
+            st.write(f"**Core Skills:** `{profile.get('skills') or '—'}`")
+            st.write(f"**Location Pref:** `{profile.get('preferred_location') or '—'}`")
             if st.button("Edit Profile Settings", use_container_width=True):
-                st.session_state["nav"] = "Student Profile"
-                st.session_state["nav_radio"] = "Student Profile"
+                st.session_state["nav_target"] = "Student Profile"
                 st.rerun()
                 
     with tab_alerts:
         st.subheader("Autonomous Background Alerts & Notification Logs")
-        st.markdown("Every 5 minutes (or when manually triggered), the autonomous scout evaluates new web opportunities. Items with an AI relevance score **> 85** trigger a live alert and are logged in your local memory.")
+        st.markdown("Every 5 minutes (or when manually triggered), the autonomous scout evaluates new web opportunities. Items with relevance score **> 85** trigger a live alert and are logged in memory.")
         if notifs:
             for n in notifs:
                 with st.expander(f"`{n.get('timestamp')}` — {n.get('title')}", expanded=False):
@@ -208,7 +234,7 @@ if page == "Dashboard & Overview":
                     if n.get('url'):
                         st.link_button("Open Opportunity Link", url=n.get('url'), use_container_width=False)
         else:
-            st.info("No system notifications logged yet. Run an Opportunity Scout pass to generate alerts!")
+            st.info("No system notifications logged.")
 
 # ==========================================
 # 2. Autonomous AI Agent Chat Page
@@ -252,24 +278,32 @@ elif page == "Autonomous AI Agent":
 # ==========================================
 elif page == "Student Profile":
     st.title("Student Profile & Interest Preferences")
-    st.markdown("Customize your skills and career domains. These preferences are stored in your **local profile memory** and guide how hackathons and internships are ranked.")
+    st.markdown("Customize your skills and domains.")
     
-    current_profile = fetch_api("/profile") or {}
+    current_profile = get_profile_data()
     
     with st.form("profile_form"):
-        name = st.text_input("Full Name", value=current_profile.get("name", "User"))
-        skills = st.text_area("Core Skills (Comma separated)", value=current_profile.get("skills", "General Computing, Problem Solving, Software Basics"))
-        interests = st.text_area("Passions & Interests", value=current_profile.get("interests", "Technology, Software Engineering, Innovation"))
-        preferred_domains = st.text_input("Preferred Career Domains", value=current_profile.get("preferred_domains", "General Software, Tech Solutions"))
+        name = st.text_input("Full Name", value=current_profile.get("name", ""))
+        skills = st.text_area("Core Skills (Comma separated)", value=current_profile.get("skills", ""), placeholder="e.g. Python, SQL, Machine Learning")
+        interests = st.text_area("Passions & Interests", value=current_profile.get("interests", ""), placeholder="e.g. Open Source, Cloud Architecture, AI Agents")
+        preferred_domains = st.text_input("Preferred Career Domains", value=current_profile.get("preferred_domains", ""), placeholder="e.g. Backend Engineering, Data Science")
+        
+        pref_loc = current_profile.get("preferred_location", "Remote")
+        loc_options = ["Remote", "Hybrid", "On-site", "Remote / Hybrid"]
+        loc_index = loc_options.index(pref_loc) if pref_loc in loc_options else 0
         preferred_location = st.selectbox(
             "Preferred Work Location",
-            ["Remote", "Hybrid", "On-site", "Remote / Hybrid"],
-            index=0
+            loc_options,
+            index=loc_index
         )
+        
+        notif_val = current_profile.get("notification_preference", "Discord")
+        notif_options = ["Discord", "Email", "In-App Only"]
+        notif_index = notif_options.index(notif_val) if notif_val in notif_options else 0
         notification_pref = st.selectbox(
             "Notification Preference",
-            ["Discord", "Email", "In-App Only"],
-            index=0
+            notif_options,
+            index=notif_index
         )
         
         submit = st.form_submit_button("Save Profile & Update Recommendations")
@@ -284,7 +318,20 @@ elif page == "Student Profile":
             }
             res = fetch_api("/profile", method="POST", json_data=payload)
             if res:
+                st.session_state["cached_profile"] = res
                 st.success("Profile updated and saved to local memory.")
+            else:
+                # Direct SQLite persistence fallback if backend is offline
+                try:
+                    from memory.sqlite import SessionLocal, update_user_profile
+                    from models.schemas import ProfileSchema
+                    db = SessionLocal()
+                    update_user_profile(db, ProfileSchema(**payload))
+                    db.close()
+                    st.session_state["cached_profile"] = payload
+                    st.success("Profile saved.")
+                except Exception as e:
+                    st.error(f"Could not save profile: {e}")
 
 # ==========================================
 # 4. Opportunity Scout Page
