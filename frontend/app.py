@@ -9,13 +9,13 @@ from typing import Dict, Any, List
 # ==========================================
 
 st.set_page_config(
-    page_title="Pathfinder AI — Autonomous Student Growth Agent",
+    page_title="Pathfinder Agent — Event Scout and Knowledge Vault",
     page_icon="🧭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling for Rich Aesthetics & Dark/Light Mode Compatibility
+# Styling for Aesthetics & Dark/Light Mode Compatibility
 st.markdown("""
 <style>
     div[data-testid="metric-container"] {
@@ -72,7 +72,7 @@ def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files:
             if files:
                 res = requests.post(url, files=files, timeout=60)
             else:
-                # Scout pipeline + Gemini scoring can take 20-30s — use a generous timeout
+                # Scout pipeline + scoring can take 20-30s
                 res = requests.post(url, json=json_data, timeout=60)
         if res.status_code == 200:
             return res.json()
@@ -119,7 +119,7 @@ def get_profile_data() -> dict:
 
 with st.sidebar:
     st.image("https://img.icons8.com/clouds/200/compass.png", width=100)
-    st.title("Pathfinder AI")
+    st.title("Pathfinder Agent")
     st.caption("Autonomous Student Growth Agent")
     st.markdown("---")
     
@@ -158,17 +158,17 @@ with st.sidebar:
     else:
         st.warning("Scout: Paused")
         
-    st.caption("Pathfinder AI v1.0 •Project Edition")
+    st.caption("Pathfinder Agent v1.0")
 
 # ==========================================
 # 1. Dashboard & Overview Page
 # ==========================================
 if page == "Dashboard & Overview":
-    st.title("Pathfinder AI")
+    st.title("Pathfinder Agent")
     st.markdown("Autonomous career and study companion for students.")
     
     profile = get_profile_data()
-    # /opportunities just shows what's already stored
+    # /opportunities shows what's already stored
     opps = fetch_api("/opportunities") or []
     vault_docs = fetch_api("/vault/documents") or {"count": 0}
     notifs = fetch_api("/notifications") or []
@@ -201,7 +201,7 @@ if page == "Dashboard & Overview":
                     with st.container():
                         st.markdown(f"""
                         **{idx+1}. [{opp.get('title')}]({opp.get('url')})** — *{opp.get('company')}*  
-                        <span class="{badge_class}">AI Score: {score}/100</span> &nbsp; • &nbsp; Deadline: `{opp.get('deadline')}`  
+                        Deadline: `{opp.get('deadline')}`
                         *{opp.get('reason')}*
                         """, unsafe_allow_html=True)
                         st.divider()
@@ -225,8 +225,8 @@ if page == "Dashboard & Overview":
                 st.rerun()
                 
     with tab_alerts:
-        st.subheader("Autonomous Background Alerts & Notification Logs")
-        st.markdown("Every 5 minutes (or when manually triggered), the autonomous scout evaluates new web opportunities. Items with relevance score **> 85** trigger a live alert and are logged in memory.")
+        st.subheader("Background Alerts & Notifications")
+        st.markdown("Summary of Notifications.")
         if notifs:
             for n in notifs:
                 with st.expander(f"`{n.get('timestamp')}` — {n.get('title')}", expanded=False):
@@ -286,7 +286,21 @@ elif page == "Student Profile":
         name = st.text_input("Full Name", value=current_profile.get("name", ""))
         skills = st.text_area("Core Skills (Comma separated)", value=current_profile.get("skills", ""), placeholder="e.g. Python, SQL, Machine Learning")
         interests = st.text_area("Passions & Interests", value=current_profile.get("interests", ""), placeholder="e.g. Open Source, Cloud Architecture, AI Agents")
-        preferred_domains = st.text_input("Preferred Career Domains", value=current_profile.get("preferred_domains", ""), placeholder="e.g. Backend Engineering, Data Science")
+        DOMAIN_OPTIONS = [
+            "Artificial Intelligence", "Machine Learning", "Data Science", 
+            "Full Stack Web Development", "Frontend Development", "Backend Development", 
+            "Mobile App Development", "DevOps & SRE", "Cloud Computing", 
+            "Cybersecurity", "Game Development", "Embedded Systems & IoT", 
+            "Blockchain & Web3", "Natural Language Processing", "UI/UX Design"
+        ]
+        
+        current_domains = [d.strip() for d in current_profile.get("preferred_domains", "").split(",") if d.strip() in DOMAIN_OPTIONS]
+        selected_domains = st.multiselect(
+            "Preferred Career Domains",
+            options=DOMAIN_OPTIONS,
+            default=current_domains
+        )
+        preferred_domains = ", ".join(selected_domains)
         
         pref_loc = current_profile.get("preferred_location", "Remote")
         loc_options = ["Remote", "Hybrid", "On-site", "Remote / Hybrid"]
@@ -362,15 +376,12 @@ elif page == "Opportunity Scout":
             score = opp.get("score", 0)
             badge_color = "#10b981" if score >= 85 else ("#f59e0b" if score >= 65 else "#64748b")
             
-            with st.expander(f"[{score}/100]  {opp.get('title')} — {opp.get('company')}", expanded=(score >= 80)):
+            with st.expander(f"{opp.get('title')} — {opp.get('company')}", expanded=(score >= 80)):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
                     st.markdown(f"**Company / Sponsor:** `{opp.get('company')}`")
-                    st.markdown(f"**Source:** `{opp.get('source')}` &nbsp; | &nbsp; **Deadline:** `{opp.get('deadline')}`")
-                    st.markdown(f"**Gemini AI Reasoning:**  \n*{opp.get('reason')}*")
+                    st.markdown(f"**Source:** `{opp.get('source')}` &nbsp; | &nbsp; **Deadline:** `{opp.get('deadline')}`")   
                 with col_b:
-                    st.markdown(f"<h2 style='color: {badge_color}; text-align: center;'>{score}</h2>", unsafe_allow_html=True)
-                    st.markdown("<p style='text-align: center;'>Relevance Score</p>", unsafe_allow_html=True)
                     st.link_button("View Opportunity", url=opp.get("url", "#"), use_container_width=True)
     else:
         st.info("No opportunities found.")
