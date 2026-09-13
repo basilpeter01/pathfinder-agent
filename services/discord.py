@@ -82,7 +82,7 @@ def send_discord_notification(db: Session, opp: OpportunitySchema) -> bool:
     except Exception as e:
         log_event("ERROR", "DISCORD", f"Webhook delivery error | error: {e}")
         return False
-
+""" dashboard route /notifications"""
 def get_notification_logs(db: Session, limit: int = 50):
     """Retrieve logged system notifications from SQLite."""
     return db.query(NotificationDB).order_by(NotificationDB.id.desc()).limit(limit).all()
