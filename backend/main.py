@@ -89,7 +89,7 @@ def list_opportunities(db: Session = Depends(get_db)):
 @app.post("/run-agent")
 def trigger_opportunity_scout(db: Session = Depends(get_db)):
     """Manually trigger the Opportunity Scout pipeline."""
-    scored_opps = run_opportunity_scout_pipeline(db)
+    scored_opps = run_opportunity_scout_pipeline(db, use_llm=True)
     return {
         "status": "success",
         "message": f"Scout pipeline ran successfully. Evaluated and ranked {len(scored_opps)} opportunities.",
