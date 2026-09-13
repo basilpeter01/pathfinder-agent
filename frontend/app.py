@@ -126,10 +126,10 @@ with st.sidebar:
     nav_options = [
         "Dashboard & Overview",
         "Autonomous AI Agent",
-        "Student Profile",
         "Opportunity Scout",
         "Study Knowledge Vault",
         "Learning Planner",
+        "Student Profile",
         "Settings & Reference"
     ]
     if "nav_target" in st.session_state:
