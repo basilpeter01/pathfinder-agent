@@ -157,19 +157,7 @@ def generate_learning_roadmap(topic: str, weeks: int = 4) -> Dict[str, Any]:
     """Generate a structured study roadmap for a given topic."""
     client = _get_client()
     if not client:
-        # Fallback structured roadmap
-        return {
-            "topic": topic,
-            "prerequisites": ["Basic Python programming", "Git fundamentals", "Command line basics"],
-            "weekly_roadmap": [
-                {"week": 1, "focus": f"Core concepts & architecture of {topic}", "tasks": ["Read official documentation", "Set up local environment", "Hello world tutorial"]},
-                {"week": 2, "focus": f"Advanced features & best practices in {topic}", "tasks": ["Build REST endpoints or pipelines", "Integrate data storage", "Handle errors gracefully"]},
-                {"week": 3, "focus": f"Integration & Project implementation", "tasks": ["Connect with external APIs", "Write unit tests", "Optimize performance"]},
-                {"week": 4, "focus": f"Deployment & Capstone project polish", "tasks": ["Deploy to staging/cloud", "Add user authentication", "Finalize presentation documentation"]}
-            ],
-            "mini_projects": [f"{topic} CLI Assistant", f"Fullstack {topic} Dashboard"],
-            "resources": [f"Official {topic} Docs", "Google AI Agents Bootcamp", "Kaggle Tutorials"]
-        }
+        raise RuntimeError("Gemini API key is not configured. Please configure GEMINI_API_KEY in your .env file to generate AI study roadmaps.")
 
     try:
         prompt = (
@@ -186,11 +174,5 @@ def generate_learning_roadmap(topic: str, weeks: int = 4) -> Dict[str, Any]:
             text = text[3:-3].strip()
         return json.loads(text)
     except Exception as e:
-        print(f"Roadmap generation error: {e}")
-        return {
-            "topic": topic,
-            "prerequisites": ["Python basics"],
-            "weekly_roadmap": [{"week": 1, "focus": f"Introduction to {topic}", "tasks": ["Read docs", "Practice examples"]}],
-            "mini_projects": [f"{topic} Mini App"],
-            "resources": ["Official Documentation"]
-        }
+        log_event("ERROR", "GEMINI", f"Roadmap generation failed: {e}")
+        raise RuntimeError(f"Roadmap generation failed: {e}")

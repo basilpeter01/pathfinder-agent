@@ -89,7 +89,7 @@ def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files:
 def get_profile_data() -> dict:
     """Fetch profile from backend API, with fallback to local SQLite and session cache if backend is offline."""
     res = fetch_api("/profile")
-    if res and isinstance(res, dict) and res.get("name"):
+    if res and isinstance(res, dict):
         st.session_state["cached_profile"] = res
         return res
     if "cached_profile" in st.session_state:

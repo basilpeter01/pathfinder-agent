@@ -24,14 +24,21 @@ def init_db():
         user = db.query(UserDB).first()
         if not user:
             default_user = UserDB(
-                name="Student",
-                skills="General Computing, Problem Solving, Software Development",
-                interests="Technology, Software Engineering, Innovation",
-                preferred_domains="Software Engineering, Technology Solutions",
-                preferred_location="Remote / Flexible",
+                name="",
+                skills="",
+                interests="",
+                preferred_domains="",
+                preferred_location="Remote",
                 notification_preference="Discord"
             )
             db.add(default_user)
+        elif user.name == "Student" and "General Computing" in (user.skills or ""):
+            # Auto-migrate legacy mock seed profile to empty state
+            user.name = ""
+            user.skills = ""
+            user.interests = ""
+            user.preferred_domains = ""
+            db.commit()
             
             # Seed default interest scores
             default_scores = [

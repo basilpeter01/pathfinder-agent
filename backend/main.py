@@ -153,7 +153,10 @@ def ask_question(request: QuestionRequest):
 @app.post("/roadmap", response_model=RoadmapResponse)
 def create_roadmap(request: RoadmapRequest, db: Session = Depends(get_db)):
     """Generate and store a structured study roadmap."""
-    roadmap_data = generate_learning_roadmap(request.topic, request.duration_weeks)
+    try:
+        roadmap_data = generate_learning_roadmap(request.topic, request.duration_weeks)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
     save_roadmap(db, request.topic, json.dumps(roadmap_data, indent=2))
     return RoadmapResponse(**roadmap_data)
 

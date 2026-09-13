@@ -12,10 +12,10 @@ Base = declarative_base()
 class UserDB(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, default="Student")
-    skills = Column(String, default="Python, Data Science") # Comma-separated
-    interests = Column(String, default="AI, Machine Learning, Hackathons") # Comma-separated
-    preferred_domains = Column(String, default="Artificial Intelligence, Backend")
+    name = Column(String, default="")
+    skills = Column(String, default="") # Comma-separated
+    interests = Column(String, default="") # Comma-separated
+    preferred_domains = Column(String, default="")
     preferred_location = Column(String, default="Remote")
     notification_preference = Column(String, default="Discord")
 
@@ -56,10 +56,10 @@ class NotificationDB(Base):
 # ==========================================
 
 class ProfileSchema(BaseModel):
-    name: str = "Student"
-    skills: str = "Python, Data Science"
-    interests: str = "AI, Machine Learning, Hackathons"
-    preferred_domains: str = "Artificial Intelligence, Backend"
+    name: str = ""
+    skills: str = ""
+    interests: str = ""
+    preferred_domains: str = ""
     preferred_location: str = "Remote"
     notification_preference: str = "Discord"
 
