@@ -62,6 +62,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+st.session_state["connection_error_shown"] = False
 
 def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files: dict = None) -> Any:
     url = f"{API_BASE}{endpoint}"
@@ -80,7 +81,9 @@ def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files:
             st.error(f"API Error ({res.status_code}): {res.text}")
             return None
     except requests.exceptions.ConnectionError:
-        st.error("Cannot connect to Server.")
+        if not st.session_state.get("connection_error_shown"):
+            st.error("Cannot connect to Server.")
+            st.session_state["connection_error_shown"] = True
         return None
     except Exception as e:
         st.error(f"Error communicating with server: {e}")
@@ -167,17 +170,18 @@ if page == "Dashboard & Overview":
     st.title("Pathfinder Agent")
     st.markdown("Autonomous career and study companion for students.")
     
-    profile = get_profile_data()
-    # /opportunities shows what's already stored
-    opps = fetch_api("/opportunities") or []
-    vault_docs = fetch_api("/vault/documents") or {"count": 0}
-    notifs = fetch_api("/notifications") or []
+    with st.spinner("Connecting..."):
+        profile = get_profile_data()
+        # /opportunities shows what's already stored
+        opps = fetch_api("/opportunities") or []
+        vault_docs = fetch_api("/vault/documents") or {"count": 0}
+        notifs = fetch_api("/notifications") or []
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         skills_raw = profile.get("skills", "")
         skills_count = len([s for s in str(skills_raw).split(",") if s.strip()]) if skills_raw else 0
-        st.metric(label="Top Skills Tracked", value=skills_count)
+        st.metric(label="Skills Tracked", value=skills_count)
     with col2:
         st.metric(label="Opportunities Ranked", value=len(opps))
     with col3:
