@@ -157,7 +157,7 @@ def generate_learning_roadmap(topic: str, weeks: int = 4) -> Dict[str, Any]:
     """Generate a structured study roadmap for a given topic."""
     client = _get_client()
     if not client:
-        raise RuntimeError("Gemini API key is not configured. Please configure GEMINI_API_KEY in your .env file to generate AI study roadmaps.")
+        raise RuntimeError("AuthenticationError: Google GenAI client uninitialized. Required environment variable 'GEMINI_API_KEY' is not set.")
 
     try:
         prompt = (
@@ -175,4 +175,4 @@ def generate_learning_roadmap(topic: str, weeks: int = 4) -> Dict[str, Any]:
         return json.loads(text)
     except Exception as e:
         log_event("ERROR", "GEMINI", f"Roadmap generation failed: {e}")
-        raise RuntimeError(f"Roadmap generation failed: {e}")
+        raise RuntimeError(f"UpstreamServiceError: Google GenAI model invocation failed ({e})")
