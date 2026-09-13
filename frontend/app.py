@@ -141,7 +141,7 @@ if page == "Dashboard & Overview":
     st.markdown("Autonomous career and study companion for students.")
     
     profile = fetch_api("/profile") or {}
-    # /opportunities no longer auto-runs the pipeline — just shows what's already stored
+    # /opportunities just shows what's already stored
     opps = fetch_api("/opportunities") or []
     vault_docs = fetch_api("/vault/documents") or {"count": 0}
     notifs = fetch_api("/notifications") or []
