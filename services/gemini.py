@@ -83,13 +83,28 @@ def score_opportunity_with_llm(user_profile: Dict[str, Any], opp: Dict[str, Any]
     domains = user_profile.get("preferred_domains", "")
 
     client = _get_client() if use_llm else None
+    
+    # 1. Start with a baseline score derived from dynamic interest scores
+    base_score = 50.0
+    matched_domain = None
+    interest_scores = user_profile.get("interest_scores", {})
+    target_text = f"{title} {company} {opp.get('description', '')}".lower()
+    
+    if interest_scores:
+        for domain, d_score in interest_scores.items():
+            if domain.lower() in target_text:
+                if d_score > base_score:
+                    base_score = d_score
+                    matched_domain = domain
+
     if not client:
         # Dynamic fallback heuristic scoring matching student's profile keywords
-        score = 50.0
+        score = base_score
         reasons = []
-        description = opp.get("description", "")
-        target_text = f"{title} {company} {description}".lower()
         
+        if matched_domain:
+            reasons.append(f"Domain match: {matched_domain}")
+            
         # Split skills, interests, and preferred_domains into distinct keywords
         profile_keywords = set()
         for field_val in [skills, interests, domains]:
@@ -105,7 +120,7 @@ def score_opportunity_with_llm(user_profile: Dict[str, Any], opp: Dict[str, Any]
             score += min(len(matched_keywords) * 12.0, 45.0)
             displayed_matches = ", ".join(sorted(matched_keywords)[:3])
             reasons.append(f"Profile keyword match: {displayed_matches}")
-        else:
+        elif not matched_domain:
             reasons.append("Baseline match based on industry domain alignment")
             
         final_score = min(max(round(score, 1), 0.0), 100.0)

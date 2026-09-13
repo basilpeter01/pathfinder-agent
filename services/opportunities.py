@@ -5,9 +5,9 @@ import requests
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from models.schemas import OpportunitySchema, OpportunityDB
-from memory.sqlite import get_user_profile, save_opportunities_to_db, get_stored_opportunities
+from memory.sqlite import get_user_profile, save_opportunities_to_db, get_stored_opportunities, get_interest_scores
 from services.gemini import score_opportunity_with_llm
-from services.discord import send_discord_notification
+from services.discord import send_agent_run_summary
 from services.logger import log_event
 
 
@@ -19,14 +19,14 @@ def fetch_live_web_opportunities() -> List[Dict[str, Any]]:
     
     # 1. Fetch live open-source hackathons & AI competitions from GitHub Search API
     try:
-        gh_url = "https://api.github.com/search/repositories?q=topic:hackathon+language:python&sort=updated&order=desc&per_page=4"
+        gh_url = "https://api.github.com/search/repositories?q=topic:hackathon+language:python&sort=updated&order=desc&per_page=15"
         t0 = time.time()
         log_event("INFO", "SCOUT", "Outbound request -> GET api.github.com (query: hackathons)")
         res = requests.get(gh_url, headers=headers, timeout=6)
         dur = int((time.time() - t0) * 1000)
         if res.status_code == 200:
             data = res.json()
-            items = data.get("items", [])[:4]
+            items = data.get("items", [])[:15]
             log_event("INFO", "SCOUT", f"GitHub Search API returned {len(items)} hackathons (HTTP 200, {dur}ms)")
             for item in items:
                 live_opps.append({
@@ -43,14 +43,14 @@ def fetch_live_web_opportunities() -> List[Dict[str, Any]]:
 
     # 2. Fetch live remote tech jobs & engineering internships from Remotive Public API
     try:
-        rm_url = "https://remotive.com/api/remote-jobs?category=software-dev&limit=4"
+        rm_url = "https://remotive.com/api/remote-jobs?category=software-dev&limit=15"
         t0 = time.time()
         log_event("INFO", "SCOUT", "Outbound request -> GET remotive.com (category: software-dev)")
         res = requests.get(rm_url, headers=headers, timeout=6)
         dur = int((time.time() - t0) * 1000)
         if res.status_code == 200:
             data = res.json()
-            jobs = data.get("jobs", [])[:4]
+            jobs = data.get("jobs", [])[:15]
             log_event("INFO", "SCOUT", f"Remotive Jobs API returned {len(jobs)} jobs (HTTP 200, {dur}ms)")
             for item in jobs:
                 pub_date = item.get("publication_date")
@@ -85,7 +85,8 @@ def run_opportunity_scout_pipeline(db: Session, use_llm: bool = False) -> List[O
         "skills": user.skills,
         "interests": user.interests,
         "preferred_domains": user.preferred_domains,
-        "preferred_location": user.preferred_location
+        "preferred_location": user.preferred_location,
+        "interest_scores": {s.topic: s.score for s in get_interest_scores(db)}
     }
     
     scored_opps = []
@@ -115,26 +116,22 @@ def run_opportunity_scout_pipeline(db: Session, use_llm: bool = False) -> List[O
     log_event("INFO", "SCOUT", f"Persisted {len(saved_db_list)} ranked opportunities into database")
     
     # Check notifications & logging (Phase 10)
-    for db_opp in saved_db_list:
-        if not db_opp.is_notified:
-            if db_opp.score >= 85.0:
-                schema_for_notif = OpportunitySchema.from_orm(db_opp) if hasattr(OpportunitySchema, "from_orm") else OpportunitySchema(
-                    title=db_opp.title,
-                    company=db_opp.company,
-                    url=db_opp.url,
-                    source=db_opp.source,
-                    deadline=db_opp.deadline,
-                    score=db_opp.score,
-                    reason=db_opp.reason,
-                    is_notified=db_opp.is_notified
-                )
-                notified = send_discord_notification(db, schema_for_notif)
-                if notified:
-                    db_opp.is_notified = True
-                    db.commit()
-            else:
-                log_event("INFO", "SCOUT", f"Opportunity score below threshold ({db_opp.score} < 85.0), skipping alert: '{db_opp.title[:35]}'")
-                
-    # Sort returned DB list by score
-    saved_db_list.sort(key=lambda x: x.score, reverse=True)
+    # Instead of alerting per-opportunity, we send a single summary alert per scout run
+    if saved_db_list:
+        # Sort returned DB list by score to find the top one
+        saved_db_list.sort(key=lambda x: x.score, reverse=True)
+        top_db_opp = saved_db_list[0]
+        
+        schema_for_notif = OpportunitySchema.from_orm(top_db_opp) if hasattr(OpportunitySchema, "from_orm") else OpportunitySchema(
+            title=top_db_opp.title,
+            company=top_db_opp.company,
+            url=top_db_opp.url,
+            source=top_db_opp.source,
+            deadline=top_db_opp.deadline,
+            score=top_db_opp.score,
+            reason=top_db_opp.reason,
+            is_notified=top_db_opp.is_notified
+        )
+        send_agent_run_summary(db, len(saved_db_list), schema_for_notif)
+
     return saved_db_list
