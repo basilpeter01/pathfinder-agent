@@ -82,7 +82,7 @@ def update_profile(profile: ProfileSchema, db: Session = Depends(get_db)):
 
 @app.get("/opportunities")
 def list_opportunities(db: Session = Depends(get_db)):
-    """Return stored opportunities. Does NOT auto-trigger the scout pipeline to avoid timeouts."""
+    """Return stored opportunities."""
     opps = get_stored_opportunities(db)
     return opps
 
