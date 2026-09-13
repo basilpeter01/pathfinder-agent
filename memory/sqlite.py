@@ -32,15 +32,6 @@ def init_db():
                 notification_preference="Discord"
             )
             db.add(default_user)
-            
-            # Seed default interest scores
-            default_scores = [
-                InterestScoreDB(topic="Software Development", score=80.0),
-                InterestScoreDB(topic="Technology", score=85.0),
-                InterestScoreDB(topic="Web Development", score=75.0),
-                InterestScoreDB(topic="Innovation", score=70.0)
-            ]
-            db.add_all(default_scores)
             db.commit()
     finally:
         db.close()
@@ -74,10 +65,67 @@ def update_user_profile(db: Session, profile_data: ProfileSchema) -> UserDB:
     user.notification_preference = profile_data.notification_preference
     db.commit()
     db.refresh(user)
+    
+    # Dynamically update scores based on new profile
+    recalculate_interest_scores(db, user)
+    
     return user
 
 def get_interest_scores(db: Session) -> List[InterestScoreDB]:
     return db.query(InterestScoreDB).all()
+
+DOMAIN_RELATIONS = {
+    "Artificial Intelligence": ["Machine Learning", "Data Science", "Natural Language Processing"],
+    "Machine Learning": ["Artificial Intelligence", "Data Science", "Natural Language Processing"],
+    "Data Science": ["Artificial Intelligence", "Machine Learning"],
+    "Natural Language Processing": ["Artificial Intelligence", "Machine Learning"],
+    "Full Stack Web Development": ["Frontend Development", "Backend Development"],
+    "Frontend Development": ["Full Stack Web Development", "UI/UX Design"],
+    "Backend Development": ["Full Stack Web Development", "Cloud Computing", "DevOps & SRE"],
+    "Mobile App Development": ["Frontend Development", "UI/UX Design"],
+    "DevOps & SRE": ["Cloud Computing", "Backend Development"],
+    "Cloud Computing": ["DevOps & SRE", "Backend Development"],
+    "Cybersecurity": ["Cloud Computing", "Backend Development"],
+    "Game Development": ["UI/UX Design"],
+    "Embedded Systems & IoT": ["Backend Development"],
+    "Blockchain & Web3": ["Backend Development", "Cybersecurity"],
+    "UI/UX Design": ["Frontend Development", "Mobile App Development"]
+}
+
+ALL_DOMAINS = list(DOMAIN_RELATIONS.keys())
+
+def recalculate_interest_scores(db: Session, profile: UserDB):
+    """Dynamically assign interest scores based on preferred_domains and skills."""
+    
+    # 1. Clear existing scores
+    db.query(InterestScoreDB).delete()
+    
+    # 2. Extract keywords/domains from user profile
+    selected_domains = [d.strip() for d in profile.preferred_domains.split(",") if d.strip()]
+    
+    # Simple check for keywords in skills/interests as fallback/boost
+    profile_text = (profile.skills + " " + profile.interests).lower()
+    
+    for domain in ALL_DOMAINS:
+        score = 10.0 # Base score for unselected domains
+        
+        # Check if domain was explicitly selected
+        if domain in selected_domains:
+            score = 90.0
+        # Check if domain appears in skills/interests text
+        elif domain.lower() in profile_text:
+            score = 80.0
+        # Check if it's a related domain
+        else:
+            for sel in selected_domains:
+                if sel in DOMAIN_RELATIONS and domain in DOMAIN_RELATIONS[sel]:
+                    score = max(score, 75.0) # Boost related domains
+                    
+        new_score = InterestScoreDB(topic=domain, score=score)
+        db.add(new_score)
+        
+    db.commit()
+
 
 # ==========================================
 # CRUD Operations — Opportunities
