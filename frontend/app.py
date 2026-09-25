@@ -211,8 +211,8 @@ if page == "Dashboard & Overview":
                         st.divider()
             else:
                 st.info("No opportunities ranked at the moment.")
-                if st.button("Run Opportunity Scout Now", type="primary"):
-                    with st.spinner("Scouting and scoring opportunities..."):
+                if st.button("Run Scout Now", type="primary"):
+                    with st.spinner("Fetching..."):
                         res = fetch_api("/run-agent", method="POST")
                         if res:
                             st.success(f"{res.get('message', 'Scout complete')}")
@@ -238,7 +238,7 @@ if page == "Dashboard & Overview":
                     if n.get('url'):
                         st.link_button("Open Opportunity Link", url=n.get('url'), use_container_width=False)
         else:
-            st.info("No system notifications logged.")
+            st.info("No notifications logged.")
 
 # ==========================================
 # 2. Autonomous AI Agent Chat Page
@@ -246,14 +246,15 @@ if page == "Dashboard & Overview":
 elif page == "Autonomous AI Agent":
     st.title("Autonomous AI Assistant")
     st.markdown("""
-    Experience Pathfinder's unified **autonomous orchestration engine**. Type anything below, and your assistant will:
-    1. **Load Profile**: Fetch your saved skills and career goals from local memory.
-    2. **Determine Intent**: Route between **Scout** (internships/hackathons), **Planner** (study roadmaps), or **Knowledge Vault** (PDF study questions).
+    Ask a question, explore a topic, or look for Events. Pathfinder pulls your saved goals and skills to:
+    Find opportunities: Track down matching internships and hackathons.
+    Plan your learning: Build roadmaps for new topics.
+    Answer study questions: Search and cite your uploaded notes and PDFs.
     """)
     
     if "agent_messages" not in st.session_state:
         st.session_state.agent_messages = [
-            {"role": "assistant", "content": "Hello! I am your autonomous Pathfinder Assistant. Try saying:\n- *'Find me internships'*\n- *'Create a study roadmap for Python'*\n- *'Summarize key concepts from my study notes'*", "intent": "system"}
+            {"role": "assistant", "content": "Hello! I am your Pathfinder Assistant. Try saying:\n- *'Find me internships'*\n- *'Create a study roadmap for Python'*\n- *'Summarize key concepts from my study notes'*", "intent": "system"}
         ]
         
     for msg in st.session_state.agent_messages:
@@ -262,7 +263,7 @@ elif page == "Autonomous AI Agent":
                 st.markdown(f"<span class='intent-tag'>Agent Route: {msg['intent'].upper()}</span>", unsafe_allow_html=True)
             st.markdown(msg["content"])
             
-    if user_prompt := st.chat_input("Command your autonomous Agent..."):
+    if user_prompt := st.chat_input("Type Something"):
         st.session_state.agent_messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
             st.markdown(user_prompt)
