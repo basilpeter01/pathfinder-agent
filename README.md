@@ -1,26 +1,18 @@
-# 🧭 Pathfinder AI — Autonomous Student Growth Agent
+# 🧭 Pathfinder
 
-> **Google × Kaggle AI Agent Capstone · v1.0**
-> *An autonomous, RAG-powered career and study acceleration agent that proactively scouts opportunities, answers questions from your own notes, and builds personalised learning roadmaps — all without waiting to be asked.*
+A full-stack project to keep track of internships, hackathons, study material, and learning plans in one place.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python) ![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-orange) ![Gemini](https://img.shields.io/badge/LLM-Gemini%201.5%20Flash-brightgreen?logo=google) ![License](https://img.shields.io/badge/License-MIT-lightgrey)
-
----
-
-## 🎯 The Problem
-
-Students juggle hundreds of applications, study deadlines, and skill gaps simultaneously — yet every existing AI tool sits idle until the student asks a question. Pathfinder AI flips this model: it runs in the background, autonomously scans live internship boards and hackathon listings, scores each opportunity against your personal profile using Gemini, and fires a Discord alert before you even knew the deadline existed.
+Instead of manually checking job boards every day, Pathfinder runs in the background, grabs live opportunities, scores them against user skills using Gemini, and pings Discord when a good match shows up. It also has a local RAG assistant to ask questions from uploaded files and a planner to generate study roadmaps.
 
 ---
 
-## 🚀 The Solution
+## 🎯 What it Does
 
-Pathfinder AI is a **fully autonomous, multi-workflow AI agent** that combines:
-
-- **Proactive Opportunity Scouting** — Pulls live data from GitHub and Remotive APIs, then uses Gemini 1.5 Flash to score opportunities 0–100 against your skill set and preferred domains. High-scoring matches (≥ 85) trigger a rich Discord embed in real time.
-- **Conversational RAG Assistant** — Upload any PDF or lecture notes; the agent chunks, embeds (BAAI/bge-small-en-v1.5 via FastEmbed ONNX), stores in LanceDB, and answers questions grounded *strictly* in your own material.
-- **AI Learning Planner** — Ask for a roadmap and Gemini returns a structured 4-week plan with prerequisites, weekly tasks, mini-projects, and curated resources — saved and browsable forever.
-- **Background Automation** — APScheduler runs the full scout pipeline every N minutes (default: 5) in a background thread with zero user interaction.
+* **Automated Opportunity Scouting:** Pulls listings from the GitHub Search API and Remotive Jobs API every few minutes. It uses Google Gemini Flash to compare the job description with saved profile and gives it a match score from 0 to 100.
+* **Discord Alerts:** If an opportunity scores 85 or higher, it sends a Discord notification via webhook. If no webhook is configured, it just saves them locally to SQLite.
+* **Note Search & Q&A (RAG):** Upload class notes or textbooks. It extracts the text, chunks it, embeds it locally using `bge-small-en-v1.5` through FastEmbed (ONNX), and stores it in LanceDB. Ask questions and get answers from files without relying on external embedding APIs.
+* **Study Roadmap Generator:** Enter any tech stack or topic along with a target duration (1–8 weeks), and Gemini outputs a weekly breakdown with topics, practice projects, and resources.
+* **Background Scheduler:** Uses APScheduler to run the scout loop automatically every 5 minutes in a separate daemon thread while the FastAPI server is running.
 
 ---
 
@@ -28,280 +20,182 @@ Pathfinder AI is a **fully autonomous, multi-workflow AI agent** that combines:
 
 ```text
 ╔══════════════════════════════════════════════════════════════╗
-║            Streamlit Dashboard  (Port 8501)                  ║
-║   Dashboard · Agent Chat · Scout · RAG · Planner · Profile   ║
+║            Streamlit Frontend  (Port 8501)                   ║
+║   Dashboard · Agent Chat · Scout · Vault · Planner · Profile ║
 ╚══════════════════╦═══════════════════════════════════════════╝
-                   ║  HTTP REST (requests library)
+                   ║  REST API (requests)
                    ▼
 ╔══════════════════════════════════════════════════════════════╗
 ║             FastAPI Backend  (Port 8000)                     ║
-║  /profile · /opportunities · /upload · /ask · /roadmap       ║
-║  /run-agent · /agent/chat · /scheduler/* · /notifications    ║
+║  Routes: /profile, /opportunities, /upload, /ask, /roadmap   ║
 ╚═══════╦═══════════════╦════════════════╦═════════════════════╝
         ║               ║                ║
         ▼               ▼                ▼
  ┌─────────────┐  ┌──────────┐   ┌─────────────────┐
- │  LangGraph  │  │  SQLite  │   │  LanceDB         │
- │  StateGraph │  │  Memory  │   │  Vector Store    │
- │             │  │          │   │  (FastEmbed ONNX)│
- │ load_profile│  │ users    │   └────────┬────────┘
- │ intent_node │  │ opportun.│            │
- │ scout_node  │  │ roadmaps │   ┌────────▼────────┐
- │ planner_node│  │ notifs   │   │  RAG Ingest     │
- │ rag_node    │  │ interest │   │  PyMuPDF →      │
- └──────┬──────┘  └──────────┘   │  Chunk → Embed  │
-        ║                        └─────────────────┘
-        ▼
+ │  LangGraph  │  │  SQLite  │   │  LanceDB        │
+ │  Workflow   │  │  Storage │   │  Vector DB      │
+ │             │  │          │   │  (FastEmbed     │
+ │ StateGraph  │  │ profiles │   │   local ONNX)   │
+ │ routing &   │  │ jobs     │   └────────┬────────┘
+ │ state mgmt  │  │ roadmaps │            │
+ └──────┬──────┘  │ logs     │   ┌────────▼────────┐
+        │         └──────────┘   │  PyMuPDF        │
+        │                        │  Text Extraction│
+        ▼                        └─────────────────┘
 ╔══════════════════════════════════════════════════════════════╗
-║              Google Gemini 1.5 Flash (LLM)                   ║
-║   Opportunity Scoring · RAG Answer Synthesis · Roadmaps       ║
+║                Google Gemini (Flash API)                     ║
+║   Scoring Jobs · Answering RAG Prompts · Making Roadmaps     ║
 ╚═══════════════════╦══════════════════════════════════════════╝
                     ║
         ┌───────────┴──────────┐
         ▼                      ▼
  ┌─────────────┐       ┌──────────────────┐
- │  APScheduler│       │  Discord Webhook  │
- │  5-min loop │──────▶│  Rich embed alert │
- │  background │       │  score ≥ 85/100   │
+ │  APScheduler│       │  Discord Webhook │
+ │ 5-min timer │──────▶│  Alert on score  │
+ │ in backend  │       │  >= 85           │
  └─────────────┘       └──────────────────┘
 ```
 
-### LangGraph Workflow — Node by Node
-
-The orchestration graph (`agent/graph.py`) is a **compiled `StateGraph`** that passes a single `AgentState` TypedDict through five nodes:
-
-| Step | Node | Responsibility |
-|------|------|----------------|
-| 1 | `load_profile_node` | Reads the student profile (name, skills, domains) from SQLite into shared state |
-| 2 | `determine_intent_node` | Keyword-based classifier; routes to `opportunity`, `learning`, or `question` |
-| 3a | `scout_node` | Fetches live APIs → Gemini scores each opportunity → saves to SQLite → Discord alert |
-| 3b | `planner_node` | Extracts topic from input → Gemini generates structured JSON roadmap → saves to SQLite |
-| 3c | `rag_node` | LanceDB cosine-similarity search (top-3 chunks) → Gemini synthesises grounded answer |
-
-> The graph includes a **sequential fallback runner** — if `langgraph` is unavailable, nodes execute in the same logical order without the compiled graph.
-
 ---
 
-## 🛠️ Setup Instructions
+## ⚙️ How the Workflow Runs (LangGraph)
 
-### Prerequisites
+The backend uses a LangGraph `StateGraph` with a shared dictionary (`AgentState`) to handle incoming requests step-by-step:
 
-- **Python 3.10+** (tested on 3.11 and 3.13)
-- A free [Google Gemini API key](https://aistudio.google.com/) — required for LLM features
-- A [Discord Webhook URL](https://support.discord.com/hc/en-us/articles/228383668) — *optional*, for real-time alerts
+1. **`load_profile_node`**: Fetches the user's saved skills and domain preferences from SQLite.
+2. **`determine_intent_node`**: Looks at the user input to route the request to the right handler:
+   - Keywords like "internship", "job", "hackathon", "scout" → `scout_node`
+   - Keywords like "roadmap", "learn", "study plan" → `planner_node`
+   - General questions about uploaded material → `rag_node`
+3. **Execution Nodes**:
+   - **`scout_node`**: Fetches live postings, calls Gemini to evaluate alignment with user skills, saves results, and sends high matches to Discord.
+   - **`planner_node`**: Prompts Gemini to return structured JSON roadmaps and saves them.
+   - **`rag_node`**: Searches LanceDB for the 3 most relevant text chunks using cosine similarity, then passes them to Gemini to synthesize an answer.
 
-### Installation
-
-```powershell
-# 1. Clone the repository
-git clone https://github.com/basilpeter01/kaggle-capstone-project.git
-cd kaggle-capstone-project
-
-# 2. Create and activate a virtual environment
-python -m venv venv
-.\venv\Scripts\activate          # Windows
-# source venv/bin/activate       # macOS / Linux
-
-# 3. Install all pinned dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment variables
-copy .env.example .env
-notepad .env   # Set GEMINI_API_KEY and (optionally) DISCORD_WEBHOOK_URL
-```
-
-### Running Locally
-
-Open **two terminals** in the project root:
-
-```powershell
-# Terminal 1 — FastAPI backend
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-
-# Terminal 2 — Streamlit frontend
-streamlit run frontend/app.py
-```
-
-| Service | URL |
-|---------|-----|
-| **Streamlit Dashboard** | http://localhost:8501 |
-| **FastAPI Swagger Docs** | http://127.0.0.1:8000/docs |
-
-> **No API key?** The system automatically falls back to a rule-based scoring engine and offline RAG preview mode — the full UI and scheduler still run.
-
----
-
-## 💬 Usage
-
-### 1. Fill in Your Profile
-Navigate to the **Profile** tab and enter your name, skills, interests, and preferred domains. This profile is used by Gemini every time it scores an opportunity.
-
-### 2. Chat with the Agent
-
-Open the **Agent Chat** tab and type naturally. Example prompts:
-
-| Intent | Example |
-|--------|---------|
-| Opportunity Scout | `"Find me AI internships"` |
-| Learning Planner | `"Give me a roadmap to learn FastAPI"` |
-| RAG Q&A | `"What is gradient descent?"` (after uploading notes) |
-
-The agent classifies your intent, routes through the LangGraph graph, and returns a grounded response.
-
-### 3. Upload Study Material
-Go to **Knowledge Vault** → Upload a PDF or TXT file. The system extracts text, chunks it (500 words, 50-word overlap), embeds it with BAAI/bge-small-en-v1.5, and stores it in LanceDB — ready for RAG queries instantly.
-
-### 4. Automated Scouting
-The background scheduler starts automatically on server boot. Every 5 minutes (configurable via `SCOUT_INTERVAL_MINUTES`) it runs the full scout pipeline and pushes Discord alerts for any opportunity scoring ≥ 85. You can also trigger it manually from the **Scout** tab.
-
-### 5. Learning Roadmaps
-Go to **Learning Planner**, enter a topic and duration (1–8 weeks). Gemini returns a structured plan (prerequisites, weekly tasks, mini-projects, resources) saved to SQLite and viewable in the Roadmaps panel.
-
----
-
-## 🧠 Methodology & Design Choices
-
-This section documents the **why** behind each major architectural decision.
-
-### Why LangGraph instead of a plain chain?
-
-Most basic LLM apps use a simple sequential chain — every input goes through the same steps. Pathfinder AI has **three fundamentally different execution paths** (scout, plan, answer). LangGraph's `StateGraph` lets us express this as a compiled, inspectable directed graph with conditional edges, making the routing logic explicit and auditable rather than buried in `if/else` blocks scattered across services.
-
-The `AgentState` TypedDict is a single shared context dictionary that every node reads from and writes to — this mirrors the standard agentic pattern where agents accumulate context as they progress through a workflow.
-
-### Why LanceDB + FastEmbed (ONNX) for vectors?
-
-LanceDB is embedded (no separate server process), columnar (built on Apache Arrow/Lance format), and ships a Python-native API — ideal for a capstone project that needs to be reproducible on any machine without Docker. FastEmbed's ONNX runtime for `BAAI/bge-small-en-v1.5` means embeddings run locally with no API calls, keeping the RAG pipeline fully offline-capable and cost-free.
-
-### Why keyword-based intent classification instead of an LLM router?
-
-Using Gemini to classify intent would add latency and token cost on *every* message before the actual task even begins. A lightweight keyword matcher (`determine_intent_node`) covers the three clearly-delineated intent classes with near-zero overhead and is completely transparent — you can read the exact trigger words in `agent/nodes.py`. For a student-facing tool where the three modes are well-understood by the user, this is a deliberate pragmatic trade-off.
-
-### Why APScheduler + background thread instead of a cron job or Celery?
-
-The project must run with a single `uvicorn` command — no Redis, no worker processes, no system cron. APScheduler's `BackgroundScheduler` attaches directly to the FastAPI process lifecycle (started in `startup`, shut down in `shutdown`) and runs the scout pipeline in a daemon thread. This keeps the setup to a two-terminal workflow (backend + frontend) that any student can reproduce.
-
-### Why SQLite + SQLAlchemy for relational data?
-
-Profiles, opportunities, roadmaps, and notification logs are all relational by nature (foreign keys, ordering, filtering). SQLite is zero-config, file-based, and ships with Python — appropriate for a local-first capstone project. SQLAlchemy's ORM gives type-safe model definitions and easy migration to PostgreSQL if the project scales up.
-
-### Graceful Degradation Strategy
-
-Every external dependency (Gemini API, Discord webhook, live web APIs) has a fallback:
-
-- **No Gemini key** → Dynamic profile-keyword heuristic opportunity scoring + offline RAG preview mode
-- **Live web scout** → Real-time ingestion from GitHub Search API and Remotive Jobs API
-- **No Discord webhook** → Notifications are logged to SQLite local memory instead
-- **LangGraph import failure** → Sequential fallback runner executes nodes in order
-
-This ensures the full UI and scheduler remain functional during judging even without API access.
-
----
-
-## ✨ Core Features
-
-| Feature | How It Works |
-|---|---|
-| **🧭 Opportunity Scout** | Fetches **live** hackathons & internships from GitHub Search API and Remotive Remote Jobs API, calls Gemini 1.5 Flash to score each 0–100 against your profile, saves ranked results to SQLite, and fires Discord alerts for scores ≥ 85 |
-| **🤖 LangGraph Agent Chat** | A compiled `StateGraph` with 5 nodes: `load_profile → determine_intent → [scout / planner / rag]`. Keyword-based intent routing decides the execution path dynamically |
-| **📚 Knowledge Vault (RAG)** | Upload PDFs or TXT files — PyMuPDF extracts text, chunked (500 words, 50-word overlap), ONNX embeddings via FastEmbed stored in LanceDB. Cosine similarity search returns top-3 chunks for Gemini synthesis |
-| **🗓️ Learning Planner** | Input any topic + duration (1–8 weeks). Gemini returns structured JSON: prerequisites, weekly tasks, mini-projects, resources. Saved to SQLite and viewable anytime |
-| **⚡ Background Automation** | APScheduler runs a daemon thread every N minutes (default 5), invoking the full scout pipeline without any user interaction |
-| **🔔 Discord Notifications** | Rich Discord embeds with title, company, score, Gemini reasoning, deadline and URL. Falls back to SQLite logging if no webhook is configured |
-| **👤 Student Profile** | Editable form — name, skills, interests, preferred domains, location, notification preference. Persisted in SQLite and used by Gemini during scoring |
+*Note: If LangGraph isn't installed or fails, there is a simple sequential fallback script that runs the exact same functions in order.*
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology | Version |
-|---|---|---|
-| **UI** | Streamlit | 1.58.0 |
-| **Backend API** | FastAPI + Uvicorn | 0.139.0 / 0.34.0 |
-| **Agent Orchestration** | LangGraph (StateGraph) | 1.2.7 |
-| **LLM** | Google Gemini 1.5 Flash (`google-genai`) | ≥ 1.16.0 |
-| **Vector Store** | LanceDB + FastEmbed (ONNX) | ≥ 0.17.0 / ≥ 0.8.0 |
-| **Relational DB** | SQLite via SQLAlchemy | 2.0.38 |
-| **PDF Parsing** | PyMuPDF (fitz) | 1.28.0 |
-| **Scheduler** | APScheduler (BackgroundScheduler) | 3.11.3 |
-| **Notifications** | discord-webhook | 1.3.1 |
-| **Data Validation** | Pydantic v2 | 2.10.6 |
-| **Arrow / Columnar** | PyArrow | ≥ 15.0.0 |
+* **Frontend:** Streamlit
+* **Backend:** FastAPI, Uvicorn
+* **State & Flow:** LangGraph
+* **LLM:** Google Gemini Flash (`google-genai`)
+* **Vector Store & Embeddings:** LanceDB + FastEmbed (`BAAI/bge-small-en-v1.5` running locally via ONNX)
+* **Document Processing:** PyMuPDF (`fitz`)
+* **Relational Database:** SQLite via SQLAlchemy
+* **Background Tasks:** APScheduler
+* **Notifications:** Discord Webhooks (`discord-webhook`)
 
 ---
 
-## 📁 Project Structure
+## 📁 Repository Structure
 
 ```text
 pathfinder-agent/
 ├── backend/
-│   └── main.py              # FastAPI app, all routes, startup/shutdown lifecycle
+│   └── main.py              # FastAPI app, API routes, app startup/shutdown
 ├── agent/
-│   ├── graph.py             # LangGraph StateGraph builder + run_agent_workflow()
-│   └── nodes.py             # AgentState TypedDict + 5 node functions
+│   ├── graph.py             # LangGraph StateGraph setup
+│   └── nodes.py             # Shared state definition and node logic
 ├── services/
-│   ├── gemini.py            # Gemini API calls: scoring, RAG QA, roadmap generation
-│   ├── opportunities.py     # Scout pipeline: fetch → score → rank → save → notify
-│   └── discord.py           # Discord webhook sender + notification DB logger
+│   ├── gemini.py            # Gemini calls for scoring, RAG, and planning
+│   ├── opportunities.py     # Logic to fetch, parse, score, and save jobs
+│   ├── discord.py           # Discord webhook triggers and notification logging
+│   └── logger.py            # Structured console logging
 ├── memory/
-│   ├── sqlite.py            # SQLAlchemy engine, CRUD for profile/opps/roadmaps
-│   └── lancedb.py           # LanceDB connection, embedding, insert, similarity search
+│   ├── sqlite.py            # SQLAlchemy setup and database helper functions
+│   └── lancedb.py           # LanceDB tables, embedding generation, and vector search
 ├── rag/
-│   └── ingest.py            # PyMuPDF text extraction + chunking → LanceDB
+│   └── ingest.py            # File text extraction, splitting, and vector ingestion
 ├── scheduler/
-│   └── jobs.py              # APScheduler setup, start/stop, status, cron job
+│   └── jobs.py              # Background job setup using APScheduler
 ├── models/
-│   └── schemas.py           # SQLAlchemy ORM models + Pydantic request/response schemas
+│   └── schemas.py           # SQLAlchemy tables and Pydantic validation schemas
 ├── frontend/
-│   └── app.py               # Streamlit 7-page dashboard
+│   └── app.py               # Multi-page Streamlit interface
 ├── data/
-│   └── pathfinder.db        # SQLite local relational memory store
-├── .env.example             # Environment variable template
-├── requirements.txt         # All pinned Python dependencies
-└── guide.md                 # Full developer handbook (architecture, internals, FAQ)
+│   ├── pathfinder.db        # Local SQLite database file
+│   └── lancedb/             # Local LanceDB vector store directory
+├── uploads/                 # Uploaded PDFs and notes
+├── .env.example             # Example environment variables
+└── requirements.txt         # Project dependencies
 ```
 
 ---
 
-## 🔑 Environment Variables
+## 🚀 Getting Started
 
-| Variable | Required | Description |
-|---|---|---|
-| `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key from AI Studio |
-| `DISCORD_WEBHOOK_URL` | Optional | Discord webhook for real-time alerts |
-| `DATABASE_URL` | Auto | SQLite path (default: `sqlite:///./data/pathfinder.db`) |
-| `UPLOADS_DIR` | Auto | Upload directory for PDFs (default: `./uploads`) |
-| `SCOUT_INTERVAL_MINUTES` | Optional | Background loop interval (default: `5`) |
-| `DISCORD_SCORE_THRESHOLD` | Optional | Minimum score to trigger Discord alert (default: `85`) |
+### Prerequisites
+
+* Python 3.10 or higher
+* A Gemini API key (from Google AI Studio)
+* A Discord Webhook URL (optional, if you want live alerts)
+
+### 1. Clone & Setup Virtual Environment
+
+```bash
+git clone https://github.com/basilpeter01/pathfinder-agent.git
+cd pathfinder-agent
+
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+# On Windows:
+.\venv\Scripts\activate
+# On Linux/macOS:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment Variables
+
+Create a `.env` file in the root directory:
+
+```bash
+# On Windows
+copy .env.example .env
+
+# On Linux/macOS
+cp .env.example .env
+```
+
+Add your details inside `.env`:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash                       # optional, defaults to flash
+DISCORD_WEBHOOK_URL=your_discord_webhook_url_here  # optional
+SCOUT_INTERVAL_MINUTES=5
+DISCORD_SCORE_THRESHOLD=85
+```
+
+### 3. Run the Project
+
+**Terminal 1 (Backend API):**
+
+```bash
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 (Frontend Interface):**
+
+```bash
+streamlit run frontend/app.py
+```
+
+* Streamlit UI runs at: `http://localhost:8501`
+* FastAPI Swagger docs run at: `http://127.0.0.1:8000/docs`
 
 ---
 
-## 📡 API Reference
+## 💡 Practical Design Choices
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Health check |
-| `GET/POST` | `/profile` | Read / update student profile |
-| `GET` | `/opportunities` | List ranked opportunities |
-| `POST` | `/run-agent` | Manually trigger scout pipeline |
-| `POST` | `/upload` | Upload PDF/TXT to Knowledge Vault |
-| `GET` | `/vault/documents` | List ingested documents |
-| `POST` | `/ask` | RAG query answered by Gemini |
-| `POST` | `/roadmap` | Generate + save learning roadmap |
-| `GET` | `/roadmaps` | List all saved roadmaps |
-| `POST` | `/agent/chat` | LangGraph agent chat endpoint |
-| `GET` | `/scheduler/status` | APScheduler status |
-| `POST` | `/scheduler/trigger` | Trigger background job immediately |
-| `GET` | `/notifications` | List SQLite notification logs |
-
-Full interactive docs available at **http://127.0.0.1:8000/docs** (Swagger UI).
-
----
-
-## 📜 License
-
-MIT License — see `LICENSE` for full terms.
-
----
-
-*Built for the **Google × Kaggle AI Agent Capstone** · Powered by Gemini · Orchestrated by LangGraph*
+* **Local Embeddings with FastEmbed:** Instead of paying for an embedding API or hitting rate limits, embeddings run completely offline on CPU using ONNX.
+* **Embedded Vector Storage with LanceDB:** LanceDB stores vectors locally on disk without needing a separate Docker container or heavy server setup like Pinecone or Milvus.
+* **Zero-Setup Database:** SQLite comes built into Python, keeping the setup minimal while still using SQLAlchemy models in case I want to migrate to PostgreSQL later.
+* **Fallbacks:** If no Gemini API key is provided, the scoring logic falls back to a simple keyword-matching heuristic so the app doesn't crash during testing. If no Discord webhook is provided, alerts simply log to SQLite. If LangGraph is not installed, it falls back to a simple sequential execution of the nodes.
