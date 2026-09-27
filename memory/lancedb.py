@@ -198,5 +198,5 @@ def list_vault_documents() -> List[str]:
             sources = set(arrow_tbl["source"].to_pylist())
             return sorted(list(sources))
         except Exception as e2:
-            print(f"Error listing documents from LanceDB: {e2}")
+            print(f"Error listing documents from Memory: {e2}")
             return []

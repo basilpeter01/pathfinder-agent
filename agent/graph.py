@@ -62,7 +62,7 @@ def build_pathfinder_graph():
 compiled_graph = build_pathfinder_graph()
 
 def run_agent_workflow(user_input: str) -> Dict[str, Any]:
-    """Execute the Pathfinder AI agent workflow (LangGraph or fallback execution)."""
+    """Execute the Pathfinder agent workflow (LangGraph or fallback execution)."""
     initial_state: AgentState = {
         "user_input": user_input,
         "profile_loaded": False,
@@ -81,7 +81,7 @@ def run_agent_workflow(user_input: str) -> Dict[str, Any]:
                 "metadata": final_state.get("metadata", {})
             }
         except Exception as e:
-            print(f"LangGraph invocation error: {e}. Executing sequential fallback.")
+            print(f"LangGraph invocation error: {e}. Executing fallback.")
             
     # Sequential Fallback Execution
     state = load_profile_node(initial_state)

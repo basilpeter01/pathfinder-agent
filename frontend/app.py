@@ -97,7 +97,7 @@ def get_profile_data() -> dict:
         return res
     if "cached_profile" in st.session_state:
         return st.session_state["cached_profile"]
-    # Direct local SQLite fallback if backend server is not running
+    # SQLite fallback if backend server is not running
     try:
         from memory.sqlite import SessionLocal, get_user_profile
         db = SessionLocal()
@@ -159,7 +159,7 @@ with st.sidebar:
     if sched_status.get("is_running"):
         st.info(f"Scout: Active ({sched_status.get('interval_minutes', 5)}m loop)")
     else:
-        st.warning("Scout: Paused")
+        st.warning("Paused")
         
     st.caption("Pathfinder Agent v1.0")
 
@@ -219,12 +219,12 @@ if page == "Dashboard & Overview":
                             st.rerun()
                 
         with right_col:
-            st.subheader("Active Profile Summary")
+            st.subheader("Profile Summary")
             st.write(f"**Name:** `{profile.get('name') or '—'}`")
             st.write(f"**Preferred Domains:** `{profile.get('preferred_domains') or '—'}`")
             st.write(f"**Core Skills:** `{profile.get('skills') or '—'}`")
             st.write(f"**Location Pref:** `{profile.get('preferred_location') or '—'}`")
-            if st.button("Edit Profile Settings", use_container_width=True):
+            if st.button("Edit Profile", use_container_width=True):
                 st.session_state["nav_target"] = "Student Profile"
                 st.rerun()
                 
@@ -236,15 +236,15 @@ if page == "Dashboard & Overview":
                 with st.expander(f"`{n.get('timestamp')}` — {n.get('title')}", expanded=False):
                     st.write(f"**Message:** {n.get('message')}")
                     if n.get('url'):
-                        st.link_button("Open Opportunity Link", url=n.get('url'), use_container_width=False)
+                        st.link_button("Open Link", url=n.get('url'), use_container_width=False)
         else:
             st.info("No notifications logged.")
 
 # ==========================================
-# 2. Autonomous AI Agent Chat Page
+# 2. Agent Chat Page
 # ==========================================
 elif page == "Autonomous AI Agent":
-    st.title("Autonomous AI Assistant")
+    st.title("AI Assistant")
     st.markdown("""
     Ask a question, explore a topic, or look for Events. Pathfinder pulls your saved goals and skills to:
     Find opportunities: Track down matching internships and hackathons.
@@ -254,7 +254,7 @@ elif page == "Autonomous AI Agent":
     
     if "agent_messages" not in st.session_state:
         st.session_state.agent_messages = [
-            {"role": "assistant", "content": "Hello! I am your Pathfinder Assistant. Try saying:\n- *'Find me internships'*\n- *'Create a study roadmap for Python'*\n- *'Summarize key concepts from my study notes'*", "intent": "system"}
+            {"role": "assistant", "content": "Hello! I'm Pathfinder Assistant. Try saying:\n- *'Find me internships'*\n- *'Create a study roadmap for Python'*\n- *'Summarize key concepts from my study notes'*", "intent": "system"}
         ]
         
     for msg in st.session_state.agent_messages:
@@ -269,7 +269,7 @@ elif page == "Autonomous AI Agent":
             st.markdown(user_prompt)
             
         with st.chat_message("assistant"):
-            with st.spinner("Analyzing request and executing..."):
+            with st.spinner("Executing..."):
                 res = fetch_api("/agent/chat", method="POST", json_data={"user_input": user_prompt})
                 if res:
                     intent_routed = res.get("intent", "unknown")
@@ -356,7 +356,7 @@ elif page == "Student Profile":
 # 4. Opportunity Scout Page
 # ==========================================
 elif page == "Opportunity Scout":
-    st.title("Autonomous Opportunity Scout")
+    st.title("Opportunity Scout")
     st.markdown("Pathfinder wakes up, scouts internships and hackathons, removes duplicates, and uses **Gemini LLM reasoning** to rank each opportunity against your interest scores.")
     
     col_btn, col_txt = st.columns([1, 4])

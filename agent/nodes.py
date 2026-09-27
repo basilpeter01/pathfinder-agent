@@ -103,7 +103,7 @@ def planner_node(state: AgentState) -> AgentState:
             f"{weeks_md}\n"
             f"**Mini-Projects:** {projects}\n"
             f"**Recommended Resources:** {resources}\n\n"
-            f"*Tip: This roadmap has been saved. You can review or track it anytime under the **Learning Planner** tab.*"
+            f"*Tip: This roadmap has been saved to the **Learning Planner** tab.*"
         )
         state["metadata"]["roadmap_topic"] = topic
     except Exception as e:

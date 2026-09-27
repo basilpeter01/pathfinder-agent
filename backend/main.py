@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Pathfinder AI API",
-    description="Backend for Pathfinder AI - Autonomous Student Growth Agent (Complete Capstone v1)",
+    description="Backend for Pathfinder Agent",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -82,7 +82,7 @@ def update_profile(profile: ProfileSchema, db: Session = Depends(get_db)):
 
 @app.get("/opportunities")
 def list_opportunities(db: Session = Depends(get_db)):
-    """Return stored opportunities."""
+    """method defined in memory/sqlite.py"""
     opps = get_stored_opportunities(db)
     return opps
 
@@ -195,6 +195,6 @@ def trigger_scheduler_job():
 
 @app.get("/notifications")
 def list_notifications(db: Session = Depends(get_db)):
-    """Retrieve logged system notifications and Discord alert history."""
+    """Defined in services/discord.py. Retrieve logged system notifications and Discord alert history."""
     notifs = get_notification_logs(db, limit=50)
     return [{"id": n.id, "title": n.title, "message": n.message, "url": n.url, "timestamp": n.timestamp} for n in notifs]
