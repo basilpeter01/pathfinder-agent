@@ -1,4 +1,4 @@
-# 🧭 Pathfinder
+# Pathfinder-Agent
 
 A full-stack project to keep track of internships, hackathons, study material, and learning plans in one place.
 
