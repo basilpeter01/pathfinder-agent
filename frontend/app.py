@@ -121,7 +121,10 @@ def get_profile_data() -> dict:
 # ==========================================
 
 with st.sidebar:
-    st.image("https://img.icons8.com/clouds/200/compass.png", width=100)
+    st.markdown('''
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=robot_2" />
+        <span class="material-symbols-outlined" style="font-size: 64px; color: #B7B7B7;">robot_2</span>
+    ''', unsafe_allow_html=True)
     st.title("Pathfinder Agent")
     st.caption("Autonomous Student Growth Agent")
     st.markdown("---")
