@@ -16,6 +16,9 @@ from services.gemini import answer_question_with_rag, generate_learning_roadmap
 from agent.graph import run_agent_workflow
 from scheduler.jobs import start_scheduler, stop_scheduler, get_scheduler_status, scheduled_scout_job, manual_scout_job
 from services.discord import get_notification_logs
+from starlette.requests import Request
+import time
+from services.logger import log_event
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,10 +34,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
-
-from starlette.requests import Request
-import time
-from services.logger import log_event
 
 app.add_middleware(
     CORSMiddleware,
