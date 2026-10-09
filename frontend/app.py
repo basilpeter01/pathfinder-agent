@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import requests
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # ==========================================
 # Page Configuration & Styling
@@ -64,7 +64,7 @@ st.markdown("""
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 st.session_state["connection_error_shown"] = False
 
-def fetch_api(endpoint: str, method: str = "GET", json_data: dict = None, files: dict = None) -> Any:
+def fetch_api(endpoint: str, method: str = "GET", json_data: Optional[dict] = None, files: Optional[dict] = None) -> Any:
     url = f"{API_BASE}{endpoint}"
     try:
         if method == "GET":
